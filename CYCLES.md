@@ -1213,3 +1213,231 @@ The four soak logs are `soak nodes 244 243` with heaps 2913568, 2909416, 2908144
   - The slow-4G times are Chromium emulation against the local uncompressed server. They are not a Lighthouse run and not the live GitHub Pages site.
   - The 50-lesson soak is four projects and a heap snapshot after a garbage collection. It is not a multi-hour session.
   - Print snippets were executed. Multiple choice and fill answers were not executed. The duplicate programs in this batch were found by comparing the question text and the code.
+
+# Review cycles 126–150
+
+Batch 2 of the second hundred. Branched from `origin/main` at `884c2c8`. Each cycle names what was checked, what was found, what changed, and the test that proved the result. A cycle that found no defect says so.
+
+Playwright runs on all four projects. New cases live in `tests/e2e/live.spec.js`.
+
+## Cycle 126 — The box model is not the next lesson
+
+Read How the Browser Paints. The tip said layout is where the box model in the next lesson gets its sizes. The next lesson is Semantic HTML. Box Model & Selectors is the one after that. The sheet already said a later lesson.
+
+Fix: the tip says the Box Model lesson gets its sizes.
+
+Verification: `validate-data.js` requires that sentence and rejects `the box model in the next lesson`. PASS.
+
+## Cycle 127 — Records are not the previous lesson
+
+Read Sealed Types. The tip said records were the previous lessons. The previous lesson is Sorting & Comparators. Records is earlier in the same unit.
+
+Fix: the tip says records, earlier in this unit, carry the fields, sorting is its own lesson, and this one is the closed set around those records.
+
+Verification: `validate-data.js` requires that sentence and rejects `Records were the previous lessons`. PASS.
+
+## Cycle 128 — Pattern matching stays in Modern Java
+
+Read the records cheat sheet. One bullet taught `instanceof String s` as if this lesson introduced it. Modern Java, Unit 3, already teaches that form. Records is Unit 4.
+
+Fix: the bullet says pattern matching was the Modern Java lesson and this lesson does not add a new form of it. The records tip still points at that lesson.
+
+Verification: `validate-data.js` requires the new bullet and rejects `That form is pattern matching.` PASS.
+
+## Cycle 129 — Midnight while a question is on screen
+
+Opened a lesson at 2026-06-15 23:59:30 with 1 heart and left the question up. Hearts changed only when the next screen was drawn. The out-of-hearts screen already watched the clock. The question did not.
+
+Fix: while a session is open, a one-second watch calls `daily()` only when a heart is due, then updates the heart count on the question. A new day is due even when hearts are already full. The watch does not save on a quiet tick.
+
+Verification: `a question on screen refills hearts at midnight`. The count goes from 1 to 5, `heartDay` is 2026-06-16, a wrong answer then leaves 4 hearts, and the out-of-hearts heading is absent. PASS on all four projects.
+
+## Cycle 130 — A heart regen while the question stays up
+
+Same screen, with 4 hearts and the regen clock 29 minutes in. `start()` already calls `daily()` once, so the heart did not move until the next click.
+
+Found the same gap for the 30-minute timer. The watch from cycle 129 covers it. This is not a second defect.
+
+Verification: `a heart comes back while the question stays on screen`. After a two-minute jump the count is 5. PASS on all four projects.
+
+## Cycle 131 — Double XP and the end of the lesson
+
+Read `addXP()` and the 2× tag. Lesson XP is granted once, at the end. The tag was painted from the clock at the moment the question was drawn. A lesson that started inside the 15 minutes and finished after they ended showed 2× and then paid 1×. A second purchase extends the window by 15 minutes from the later end (`Math.max(Date.now(), doubleUntil) + 15 minutes`). The old sentence “for 15 minutes” did not say which lessons were doubled.
+
+Fix: a session keeps the boost that was running when it started, including after the 15 minutes end. The tag uses that same rule. The shop says a purchase adds 15 minutes, and a lesson started while it is active earns 2× XP. A second purchase was not clicked in this batch. The formula was read.
+
+Verification: `a lesson started during double XP keeps the boost after the timer ends`. The tag is visible, the clock jumps 90 seconds, the tag stays, and a perfect How a Program Runs lesson pays 62 XP (31 doubled). PASS on all four projects.
+
+## Cycle 132 — A lesson started after the boost
+
+Started a lesson one second after `doubleUntil`. 
+
+Found the boundary already matched the rule. No further change.
+
+Verification: `a lesson started after double XP expired is not boosted`. The tag is absent and the same lesson pays 31 XP. PASS on all four projects.
+
+## Cycle 133 — The appearance group had no name
+
+Opened Settings. The daily-goal row was a named radio group. Appearance was a radio group with no name. The choices themselves say System, Light, and Dark.
+
+Fix: the group is named by the Appearance heading.
+
+Verification: `settings and the question name their radio groups`. The Appearance group is visible and each of the three radios is present once. PASS on all four projects.
+
+## Cycle 134 — The answer group had no name
+
+Read a multiple-choice question. The choices were a radio group. The question was the heading above them, and the group did not use it as its name.
+
+Fix: the question heading has an id, and the group is labelled by that heading. Arrange questions do not use the group.
+
+Verification: the same test reads the heading and finds one radio group with that name. PASS on all four projects.
+
+## Cycle 135 — Gem rewards the shop did not list
+
+Compared the shop’s earn list with the grants in code. Lessons, the daily goal, the 7-day streak, interviews, and speed challenges were listed. Level up pays +20, a quest pays +15, and the chest pays +25. Those three were missing.
+
+Fix: the list includes them.
+
+Verification: `the shop lists every gem reward`. PASS on all four projects. `validate-static.js` requires the three lines and the Double XP sentence.
+
+## Cycle 136 — Two service workers, one open tab
+
+Served one `sw.js` that cached `byteryte-v17`, waited until it controlled the page, then served this build’s `sw.js` (`byteryte-v18`) to the same tab and called `update()`. No reload.
+
+Found the toast and the cache swap already worked. The first claim does not toast. A later claim does. Activate deletes the other cache.
+
+Verification: `an open tab installs a newer service worker without reloading`. The toast is absent before `update()`. After it, the toast is visible, `byteryte-v18` is present, and `byteryte-v17` is gone. The daily goal stays on screen. PASS on all four projects. The cache name change to v18 is the ship step for this batch’s files, not a separate defect.
+
+## Cycle 137 — A leftover v17 cache
+
+Planted a `byteryte-v17` cache, unregistered, and reloaded onto this build.
+
+Found activate still deletes every cache whose name is not the current one.
+
+Verification: `service worker v18 replaces a v17 cache and tells an open tab to reload` in the combined run. PASS on all four projects.
+
+## Cycle 138 — The level formula
+
+Read `level()` again. The XP to reach level n is `25 * n * (n + 3)`, and the next level needs `100 + 50 * n`.
+
+Found nothing wrong. No formula change.
+
+Verification: `levels follow the xp curve and huge xp still renders` PASS on all four projects.
+
+## Cycle 139 — Hearts, the shop, and a streak freeze
+
+Read the shop prices, the one-day freeze, and the heart timer again. A freeze is all or nothing. The shop waits 400ms per item.
+
+Found no new contradiction.
+
+Verification: `hearts regenerate, refill at midnight, and block lessons at zero`, `streak freeze covers one missed day and resets when it cannot`, and the shop cases in the combined run. PASS on all four projects.
+
+## Cycle 140 — Print snippets after the sentence edits
+
+The sentence edits did not change a print snippet.
+
+Verification: `validate-java.js` PASS, 175 snippets, JDK 21. `validate-swift.js` PASS, 42 snippets, Swift 6.0.3.
+
+## Cycle 141 — Ambiguous choices and duplicates
+
+Checked the validators that reject a repeated correct line, a repeated question, and a repeated print.
+
+Found nothing new.
+
+Verification: `validate-ambiguity.js` PASS, arrange-duplicates=1. `validate-data.js` PASS, lessons=62, exercises=683, interview=139.
+
+## Cycle 142 — The neighbor sentences that were already right
+
+Read Types & Variables. The next lesson is Memory, and the tip says the next lesson explains a reference. Read Control Flow. The next lesson is Methods, and arrays come after that.
+
+Found nothing wrong.
+
+## Cycle 143 — The first answer, an empty install, and reduced motion
+
+These were locked in the previous batch. This run repeats them.
+
+Found nothing broken.
+
+Verification: `the first answer can be entered from the keyboard`, `a fresh install with no profile reaches onboarding`, and `reduced motion skips confetti` PASS on all four projects.
+
+## Cycle 144 — Four profiles and a timezone jump
+
+Repeated the previous batch’s profile switch and the Kiritimati check.
+
+Found nothing broken.
+
+Verification: `several profiles can be added and switched by name` and `the local day follows a timezone change` PASS on all four projects.
+
+## Cycle 145 — The bundle
+
+Checked the byte budget after the copy and the session watch. The cap is still 400000.
+
+Found 340002 bytes. That is inside the cap.
+
+Verification: `validate-perf.js` PASS, bytes=340002, limit=400000.
+
+## Cycle 146 — Keyboard, zoom, and long names
+
+Repeated the previous batch’s keyboard, zoom, and name checks as part of the combined run.
+
+Found nothing broken.
+
+Verification: `larger text keeps the home screen inside the viewport` and `long emoji and right-to-left names stay on screen` PASS on all four projects.
+
+## Cycle 147 — Quest gems on an already full bar
+
+Repeated the previous batch’s reward checks.
+
+Found nothing broken.
+
+Verification: `a full daily bar pays the goal and the xp quest once` and `lowering the daily goal pays gems that were already earned` PASS on all four projects.
+
+## Cycle 148 — A second tab during a lesson
+
+Repeated the previous batch’s profile-swap check.
+
+Found nothing broken.
+
+Verification: `a lesson keeps its profile when another tab adds one` and `a second tab keeps a purchase and a goal change from the other tab` PASS on all four projects.
+
+## Cycle 149 — Docs and the offline copy
+
+Fetched the lesson and interview URLs, and reloaded with the network off after this build’s worker had cached `boot.js`.
+
+Found nothing broken.
+
+Verification: `validate-docs.js` PASS, 53 URLs. `offline reload under /ByteRyte/ uses cache v18` PASS on all four projects.
+
+## Cycle 150 — What this batch adds up to
+
+Checked the write-ups above against the suite. The closing count is below.
+
+## Final verification
+
+`npm test` from `tests/` exited 0. Playwright reported 2.6m. This run is the one that counts. It includes the assertion that the reload toast is absent before the second service worker is served.
+
+- `validate-data.js` PASS, lessons=62, exercises=683, interview=139, fixes=62, outs=217
+- `validate-static.js` PASS
+- `validate-docs.js` PASS, 53 URLs
+- `validate-java.js` PASS, 175 snippets, JDK 21
+- `validate-swift.js` PASS, 42 snippets, Swift 6.0.3
+- `validate-ambiguity.js` PASS, arrange-duplicates=1
+- `validate-perf.js` PASS, bytes=340002, limit=400000
+- Playwright PASS, 292 passed, 0 skipped
+
+The four soak logs are `soak nodes 244 243` with heaps 2914844, 2914968, 2910004, and 2910120, each with 50 lessons. The four slow-4G times are 2663 ms, 2657 ms, 2687 ms, and 2722 ms.
+
+## Closing summary
+
+- Total cycles completed: 150. This batch is 126–150.
+- Bugs found and fixed in this batch: 8. Counted once each: the paint lesson calling the box model the next lesson (126); sealed types calling records the previous lesson (127); the records sheet teaching pattern matching as its own idea (128); a question on screen ignoring midnight and the heart timer (129, and the regen proof in 130); Double XP showing 2× and then paying 1× when the timer ended mid-lesson (131); the appearance group with no name (133); the answer group with no name (134); the shop list omitting level-up, quest, and chest gems (135).
+- Not in that 8: the cache rename from v17 to v18 (136), the live worker test that found the toast and the cache swap already working (136), and the boundary lesson that started after the boost (132). A second Double XP purchase was read in the formula and was not clicked.
+- Cumulative bugs across cycles 1–150: 83. Cycles 1–125 counted 75.
+- Final test counts: `npm test` exited 0. Validators: lessons 62, exercises 683, interview 139, fixes 62, outs 217, docs 53, Java snippets 175 (JDK 21), Swift snippets 42 (Swift 6.0.3), arrange-duplicates 1, bytes 340002 of 400000. Playwright 292 passed, 0 skipped, in 2.6m. Soak on all four projects: 244 nodes then 243, heaps 2910004–2914968, 50 lessons. Slow 4G on all four projects: 2657–2722 ms, under the 8 second guard.
+- Known limitations / not testable here:
+  - No physical phone, no spoken VoiceOver, and no installed home-screen icon. The new names are the accessible names Playwright reads. Offline is a Playwright context set to offline. CSS zoom 2 is not pinch zoom.
+  - The two service-worker scripts were fulfilled by the test. They were not two deploys of GitHub Pages. The tab did not reload between them.
+  - The slow-4G times are Chromium emulation against the local uncompressed server. They are not a Lighthouse run and not the live GitHub Pages site.
+  - The 50-lesson soak is four projects and a heap snapshot after a garbage collection. It is not a multi-hour session.
+  - Print snippets were executed. Multiple choice and fill answers were not executed.
+  - A second Double XP purchase, stacked on a timer that was already running, was not clicked. The code adds 15 minutes to the later end, and the shop sentence says that.

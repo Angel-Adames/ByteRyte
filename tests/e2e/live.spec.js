@@ -110,6 +110,7 @@ test('an open tab installs a newer service worker without reloading', async ({ p
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes('byteryte-v17'))).toBe(true);
+  await expect(page.getByText('A new version of ByteRyte is ready. Reload to use it.')).toHaveCount(0);
   body = real;
   await page.evaluate(async () => {
     const reg = await navigator.serviceWorker.getRegistration();
