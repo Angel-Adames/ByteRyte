@@ -14,9 +14,15 @@ let P=JSON.parse(localStorage.getItem(PK)||'null');
 if(!P){P={active:null,list:{}};const old=JSON.parse(localStorage.getItem('byteroots-v1')||'null');
   if(old){const p=Object.assign(NEWP(),{xp:old.xp||0,streak:old.streak||0,done:old.done||{},review:old.review||{},track:old.track||'java',onboarded:true});
     if(old.last){const d=new Date(old.last);if(!isNaN(d))p.last=iso(d)}p.best=p.streak;P.list[p.id]=p;P.active=p.id}}
-Object.keys(P.list).forEach(id=>{const d=NEWP(),p=P.list[id];P.list[id]=Object.assign(d,p,{id,inv:Object.assign(d.inv,p.inv),stats:Object.assign(d.stats,p.stats)})});
-if(P.active&&!P.list[P.active])P.active=Object.keys(P.list)[0]||null;
-let S=P.list[P.active];
+let S;
+function hydrate(){
+  if(!P||typeof P!=='object')P={active:null,list:{}};
+  if(!P.list||typeof P.list!=='object')P.list={};
+  Object.keys(P.list).forEach(id=>{const d=NEWP(),p=P.list[id]||{};
+    P.list[id]=Object.assign(d,p,{id,inv:Object.assign({},d.inv,p.inv||{}),stats:Object.assign({},d.stats,p.stats||{}),saved:Object.assign({},p.saved||{}),badges:Object.assign({},p.badges||{}),done:Object.assign({},p.done||{}),review:Object.assign({},p.review||{}),misses:Object.assign({},p.misses||{}),xpLog:Object.assign({},p.xpLog||{}),dlog:Object.assign({},p.dlog||{})})});
+  if(!P.active||!P.list[P.active])P.active=Object.keys(P.list)[0]||null;
+  S=P.active?P.list[P.active]:null}
+hydrate();
 const saveG=()=>localStorage.setItem(GK,JSON.stringify(G));
 const save=()=>{if(S)P.list[S.id]=S;localStorage.setItem(PK,JSON.stringify(P))};
 const HREG=30*60*1000;
@@ -49,10 +55,11 @@ const DJ='https://dev.java/learn/',DO='https://docs.oracle.com/en/java/javase/21
 const DOCS={'Types & Variables':DJ+'language-basics/primitive-types/','Strings':DO+'lang/String.html','Control Flow':DJ+'language-basics/controlling-flow/','Methods':DJ+'classes-objects/defining-methods/','Arrays':DJ+'language-basics/arrays/','Classes & Objects':DJ+'classes-objects/','Inheritance & Polymorphism':DJ+'inheritance/','Interfaces & Abstract Classes':DJ+'interfaces/','References & Memory':DJ+'classes-objects/creating-objects/','Exceptions':DJ+'exceptions/','Lists & Generics':DJ+'generics/','Maps & Sets':DJ+'api/collections-framework/','Lambdas & Streams':DJ+'lambdas/','Records, Enums & Equality':DJ+'records/','Sorting & Comparators':DO+'util/Comparator.html','Recursion':DJ+'classes-objects/defining-methods/','Big-O & Searching':DO+'util/Arrays.html','Threads & Concurrency':DO+'util/concurrent/package-summary.html','OOP Design & SOLID':DJ+'interfaces/','Files & I/O':DO+'nio/file/Files.html','Testing with JUnit':'https://junit.org/junit5/docs/current/user-guide/','Interview Patterns':DJ+'api/collections-framework/',
 'App Lifecycle & Scene Graph':FX+'javafx.graphics/javafx/application/Application.html','Layouts & Controls':FX+'javafx.graphics/javafx/scene/layout/package-summary.html','Events, Properties & FXML':FX+'javafx.base/javafx/beans/property/package-summary.html','Styling JavaFX with CSS':FX+'javafx.graphics/javafx/scene/doc-files/cssref.html','Concurrency & Tasks':FX+'javafx.graphics/javafx/concurrent/Task.html',
 'Semantic HTML & Forms':MDN+'Glossary/Semantics','Box Model & Selectors':MDN+'Learn_web_development/Core/Styling_basics/Box_model','Flexbox & Grid':MDN+'Web/CSS/CSS_grid_layout','Responsive Design':MDN+'Learn_web_development/Core/CSS_layout/Responsive_Design','Variables, Transitions & Units':MDN+'Web/CSS/Using_CSS_custom_properties',
-'Basics & Optionals':SW+'thebasics/','Value vs Reference Types':SW+'classesandstructures/','Errors & SwiftUI Basics':SW+'errorhandling/','Protocols, Closures & Collections':SW+'protocols/','Enums, Switch & Structs':SW+'enumerations/'};
+'Basics & Optionals':SW+'thebasics/','Value vs Reference Types':SW+'classesandstructures/','Errors & SwiftUI Basics':SW+'errorhandling/','Protocols, Closures & Collections':SW+'protocols/','Enums, Switch & Structs':SW+'enumerations/','Alerts & Dialogs':FX+'javafx.controls/javafx/scene/control/Alert.html','Windows & Modality':FX+'javafx.graphics/javafx/stage/Stage.html','Lists & Selection':FX+'javafx.controls/javafx/scene/control/ListView.html','Forms & Validation':MDN+'Web/CSS/:invalid','Positioning':MDN+'Web/CSS/position','Accessible CSS':MDN+'Web/CSS/:focus-visible','Strings & Characters':SW+'stringsandcharacters/','Throwing Functions':SW+'errorhandling/','SwiftUI Lists':'https://developer.apple.com/documentation/swiftui/foreach'};
 const IVDOC={Swift:SW+'thebasics/',JavaFX:'https://openjfx.io/openjfx-docs/',CSS:MDN+'Web/CSS/CSS_grid_layout',Complexity:DJ+'api/collections-framework/','Data structures':DJ+'api/collections-framework/'};
 const docUrl=k=>{if(!k)return null;if(k.startsWith('iv-'))return IVDOC[IV[+k.slice(3)]?.tag]||null;const [t,u,l]=k.split('-');const L=T(t)?.units[u]?.lessons[l];return L?DOCS[L.name]||null:null};
-const docLink=u=>u?`<a class="learn" href="${u}" target="_blank" rel="noopener">📘 Learn more · ${new URL(u).hostname.replace(/^www\./,'')} <span aria-hidden="true">↗</span><span class="sr">(opens in a new tab)</span></a>`:'';
+const docLink=u=>{try{if(!u)return '';const host=new URL(u).hostname.replace(/^www\./,'');return `<a class="learn" href="${u}" target="_blank" rel="noopener">📘 Learn more · ${host} <span aria-hidden="true">↗</span><span class="sr">(opens in a new tab)</span></a>`}catch(e){return ''}};
+const sheetHTML=items=>items&&items.length?`<ul class="cheats">${items.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:'';
 const dl=()=>{const d=today();S.dlog=S.dlog||{};return S.dlog[d]=S.dlog[d]||{l:0,a:0,c:0}};
 const savedKeys=()=>Object.keys(S.saved||{}).filter(k=>exByKey(k)).sort((a,b)=>S.saved[b]-S.saved[a]);
 const exByKey=k=>{if(k.startsWith('iv-'))return IV[+k.slice(3)];const [t,u,l,e]=k.split('-');return T(t)?.units[u]?.lessons[l]?.ex[e]};
@@ -86,7 +93,7 @@ const BADGES=[
 ['streak7','☄️','Unstoppable','Reach a 7-day streak',()=>S.best>=7,()=>[S.best,7]],
 ['xp500','⚡','Charged','Earn 500 XP',()=>S.xp>=500,()=>[S.xp,500]],
 ['xp2000','🌩️','Supercharged','Earn 2,000 XP',()=>S.xp>=2000,()=>[S.xp,2000]],
-['unit1','☕','Java Rooted','Complete Java Unit 1',()=>lessons(T('java')).filter(x=>x.ui===0).every(x=>S.done[x.key]),()=>[lessons(T('java')).filter(x=>x.ui===0&&S.done[x.key]).length,5]],
+['unit1','☕','Java Rooted','Complete Java Unit 1',()=>lessons(T('java')).filter(x=>x.ui===0).every(x=>S.done[x.key]),()=>{const u=lessons(T('java')).filter(x=>x.ui===0);return [u.filter(x=>S.done[x.key]).length,u.length]}],
 ['branch','🌿','Branching Out','Finish a JavaFX and an HTML & CSS lesson',()=>['javafx','css'].every(t=>lessons(T(t)).some(x=>S.done[x.key]))],
 ['swift','🐦','Bilingual','Finish a Swift lesson',()=>lessons(T('swift')).some(x=>S.done[x.key])],
 ['iv1','💼','Interview Ready','Complete a mock interview',()=>S.stats.interviews>=1],
@@ -94,7 +101,7 @@ const BADGES=[
 ['review','🔁','Comeback','Complete 3 review sessions',()=>S.stats.reviews>=3,()=>[S.stats.reviews,3]],
 ['shop','🛍️','Big Spender','Buy something in the shop',()=>S.stats.bought>=1],
 ['java','👑','Java Master','Complete every Java lesson',()=>lessons(T('java')).every(x=>S.done[x.key]),()=>[lessons(T('java')).filter(x=>S.done[x.key]).length,lessons(T('java')).length]],
-['pro','🧰','Professional','Complete Java Unit 5: Professional Java',()=>lessons(T('java')).filter(x=>x.ui===4).every(x=>S.done[x.key]),()=>[lessons(T('java')).filter(x=>x.ui===4&&S.done[x.key]).length,4]],
+['pro','🧰','Professional','Complete Java Unit 5: Professional Java',()=>lessons(T('java')).filter(x=>x.ui===4).every(x=>S.done[x.key]),()=>{const u=lessons(T('java')).filter(x=>x.ui===4);return [u.filter(x=>S.done[x.key]).length,u.length]}],
 ['curator','★','Curator','Save 3 questions to revisit',()=>Object.keys(S.saved||{}).length>=3,()=>[Object.keys(S.saved||{}).length,3]],
 ['speed','🏎️','Speed Demon','Get 15+ right in a speed challenge',()=>(S.stats.bestChal||0)>=15,()=>[S.stats.bestChal||0,15]]];
 function checkBadges(){BADGES.forEach(([id,ic,n,,f])=>{if(!S.badges[id]&&f()){S.badges[id]=Date.now();setTimeout(()=>{toast(`${ic} Badge unlocked: ${n}`);sfx.coin()},400)}});save()}
@@ -114,7 +121,7 @@ function go(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,setting
 // ---------- learn ----------
 function home(){
   cur='learn';const t=T(S.track),ls=lessons(t),locked=t.parent&&!branchOpen(),firstOpen=ls.findIndex(x=>!S.done[x.key]),gp=Math.min(100,(S.xpLog[today()]||0)/S.goal*100);
-  let h=`<section class="goalcard"><div class="row"><b>Daily goal</b><span>${S.xpLog[today()]||0} / ${S.goal} XP</span></div><div class="bar"><i style="width:${gp}%"></i></div>${S.last===yday()&&!(S.xpLog[today()])?`<div class="pill warn">🔥 Keep your ${S.streak}-day streak alive — do one lesson today!</div>`:''}${dblOn()?`<div class="pill">⚡ Double XP active · ${Math.ceil((S.doubleUntil-Date.now())/60000)} min left</div>`:''}</section>
+  let h=`<section class="goalcard"><div class="row"><b>Daily goal</b><span>${S.xpLog[today()]||0} / ${S.goal} XP</span></div><div class="bar"><i style="width:${gp}%"></i></div>${S.last===yday()&&!(S.xpLog[today()])?`<div class="pill warn">🔥 Keep your ${S.streak}-day streak alive — do one lesson today!</div>`:''}${S.freezes?`<div class="pill">🧊 ${S.freezes} streak freeze${S.freezes>1?'s':''} ready</div>`:''}${dblOn()?`<div class="pill">⚡ Double XP active · ${Math.ceil((S.doubleUntil-Date.now())/60000)} min left</div>`:''}</section>
   <button class="qchip" data-go="practice">🗓 Daily quests <b>${quests().filter(q=>q.done).length}/3</b><span>›</span></button>
   <div class="tabs" role="tablist">`;
   TRACKS.forEach(x=>{const d=lessons(x).filter(y=>S.done[y.key]).length,n=lessons(x).length;
@@ -128,16 +135,16 @@ function home(){
       h+=`<div class="nodewrap ${isCur?'hascur':''}" style="--x:${off}px">${isCur?'<div class="startbub">START</div>':''}<button class="node ${open?'':'lock'} ${S.done[k]?'done':''} ${isCur?'cur':''}" style="--c:${t.color}" data-k="${k}" ${open?'':'disabled'} aria-label="${esc(l.name)}${S.done[k]?' (complete)':open?'':' (locked)'}">${S.done[k]?'★':open?t.icon:'🔒'}</button><div class="nlab">${esc(l.name)}</div></div>`});
     h+=`</div>`});
   if(t.id==='java')h+=`<div class="branchbox">🌿 Branches: <b>JavaFX</b> and <b>HTML &amp; CSS</b> (incl. JavaFX CSS) ${branchOpen()?'are unlocked — switch tabs above.':'unlock after Java Unit 1.'}</div>`;
-  h+=`<p class="note">Code answers compiled &amp; run (JDK 21, Swift); concepts checked against Oracle/OpenJFX, MDN and Swift.org docs.</p>`;
+  h+=`<p class="note">Print answers were run on JDK 21. Swift snippets were checked against the Swift.org language guide. Concepts checked against Oracle, OpenJFX, and MDN. Gems stay in the app.</p>`;
   shell(h);
   $$('.tab').forEach(b=>b.onclick=()=>{S.track=b.dataset.t;save();home()});
-  $$('.node:not(.lock)').forEach(b=>b.onclick=()=>{const L=lessonOf(b.dataset.k);start(L.ex.map((e,i)=>({e,k:`${b.dataset.k}-${i}`})),{key:b.dataset.k,name:L.name,tip:L.tip,mode:'lesson'})});
+  $$('.node:not(.lock)').forEach(b=>b.onclick=()=>{const L=lessonOf(b.dataset.k);start(L.ex.map((e,i)=>({e,k:`${b.dataset.k}-${i}`})),{key:b.dataset.k,name:L.name,tip:L.tip,sheet:L.sheet,mode:'lesson'})});
   $$('.guide').forEach(b=>b.onclick=()=>guide(t,+b.dataset.u));
   $('.node.cur')?.scrollIntoView({block:'center'});
 }
 function guide(t,ui){const u=t.units[ui];
   shell(`<button class="link" id="bk">‹ Back to path</button><h1 class="h1">📖 ${esc(u.name)}</h1><p class="muted">Key ideas for every lesson in this unit — read before you start, or come back to refresh.</p>
-  ${u.lessons.map((l,li)=>{const ex=l.ex.find(e=>e.t==='out'&&e.code.split('\n').length<=4);return `<article class="gcard" style="--c:${t.color}"><h2>${t.icon} ${esc(l.name)} ${S.done[`${t.id}-${ui}-${li}`]?'<span class="tag">✓ done</span>':''}</h2><p>${esc(l.tip)}</p>${docLink(DOCS[l.name])}${ex?`<div class="gex"><small>Example</small><pre class="code sm" tabindex="0">${hl(ex.code)}</pre><small>Prints: <code>${esc(ex.opts[ex.a])}</code></small></div>`:''}</article>`}).join('')}`);
+  ${u.lessons.map((l,li)=>{const ex=l.ex.find(e=>e.t==='out'&&e.code.split('\n').length<=4);return `<article class="gcard" style="--c:${t.color}"><h2>${t.icon} ${esc(l.name)} ${S.done[`${t.id}-${ui}-${li}`]?'<span class="tag">✓ done</span>':''}</h2><p>${esc(l.tip)}</p>${sheetHTML(l.sheet)}${docLink(DOCS[l.name])}${ex?`<div class="gex"><small>Example</small><pre class="code sm" tabindex="0">${hl(ex.code)}</pre><small>Prints: <code>${esc(ex.opts[ex.a])}</code></small></div>`:''}</article>`}).join('')}`);
   $('#bk').onclick=home}
 // ---------- practice ----------
 function practice(){cur='practice';const dn=due().length;
@@ -244,17 +251,17 @@ function settings(){cur='settings';
   $('#big').onclick=()=>{G.big=!G.big;saveG();applyTheme();settings()};
   $('#ua').onclick=()=>{S.unlockAll=!S.unlockAll;save();settings()};
   $$('[data-g]').forEach(b=>b.onclick=()=>{S.goal=+b.dataset.g;save();settings()});
-  $('#exp').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({app:'ByteRyte',v:2,profiles:P,settings:G},null,1)],{type:'application/json'}));a.download=`byteroots-backup-${today()}.json`;a.click()};
-  $('#imp').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!d.profiles?.list)throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;S=P.list[P.active];save();toast('✅ Progress imported');home()}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
-  $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.onboarded=true;S=n;save();home()}};
+  $('#exp').onclick=()=>{const blob=new Blob([JSON.stringify({app:'ByteRyte',v:2,profiles:P,settings:G},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`byteroots-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
+  $('#imp').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!d.profiles?.list)throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(d.settings&&typeof d.settings==='object'){G=Object.assign({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}save();daily();toast('✅ Progress imported');home()}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
+  $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;S=n;save();home()}};
 }
 // ---------- lesson engine ----------
 let R,timerId;
 function start(items,opt){
-  regen();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0)return outOfHearts();
+  clearInterval(timerId);regen();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0)return outOfHearts();
   R=Object.assign({q:items.slice(),total:items.length,done:0,correct:0,mist:new Set(),res:[],t0:Date.now()},opt);
   if(R.mode==='challenge'||R.mode==='interview'){R.end=Date.now()+R.secs*1000;timerId=setInterval(tick,250)}
-  app.className='';if(R.tip){app.innerHTML=`<div class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar"><i style="width:0"></i></div></div><main class="fade"><div class="kind">💡 Before you start</div><h1 class="h1">${esc(R.name)}</h1><div class="tip">${esc(R.tip)}</div><p class="muted">${R.total} exercises · mistakes come back at the end and in Review.</p></main><div class="foot"><div class="in"><button class="btn" id="go">Start lesson</button></div></div>`;
+  app.className='';if(R.tip){app.innerHTML=`<div class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar"><i style="width:0"></i></div></div><main class="fade"><div class="kind">💡 Before you start</div><h1 class="h1">${esc(R.name)}</h1><div class="tip">${esc(R.tip)}</div>${sheetHTML(R.sheet)}<p class="muted">${R.total} exercises · mistakes come back at the end and in Review.</p></main><div class="foot"><div class="in"><button class="btn" id="go">Start lesson</button></div></div>`;
     $('#x').onclick=home;$('#go').onclick=next;$('#go').focus()}else next();
 }
 function tick(){const left=Math.max(0,R.end-Date.now()),el=$('#tmr');if(el){el.textContent=`⏱ ${Math.floor(left/60000)}:${String(Math.floor(left/1000)%60).padStart(2,'0')}`;el.classList.toggle('warn',left<10000)}if(!left){clearInterval(timerId);finish(true)}}
@@ -280,7 +287,7 @@ function next(){
   else{$$('.opt').forEach(b=>b.onclick=()=>{if(b.disabled)return;$$('.opt').forEach(o=>{o.classList.remove('sel');o.setAttribute('aria-checked','false')});b.classList.add('sel');b.setAttribute('aria-checked','true');sel=+b.dataset.i;chk.disabled=false;tone(520,.04)});
     chk.onclick=()=>{$$('.opt').forEach(o=>{o.disabled=true;if(+o.dataset.i===e.a)o.classList.add('right');else if(+o.dataset.i===sel)o.classList.add('wrong')});
       judge(sel===e.a,e.t==='bug'?`Line ${e.a+1}: ${e.lines[e.a].trim()}`:e.opts[e.a])}}
-  if($('#ff'))$('#ff').onclick=()=>{const wrong=shuffle($$('.opt').filter(o=>+o.dataset.i!==e.a&&!o.disabled)).slice(0,2);wrong.forEach(o=>{o.disabled=true;o.classList.add('gone');o.classList.remove('sel')});if(wrong.some(o=>+o.dataset.i===sel)){sel=null;chk.disabled=true}S.inv.fifty--;save();$('#ff').disabled=true;$('#ff b').textContent=S.inv.fifty};
+  if($('#ff'))$('#ff').onclick=()=>{if(!S.inv.fifty)return;const wrong=shuffle($$('.opt').filter(o=>+o.dataset.i!==e.a&&!o.disabled)).slice(0,2);wrong.forEach(o=>{o.disabled=true;o.classList.add('gone');o.classList.remove('sel')});if(wrong.some(o=>+o.dataset.i===sel)){sel=null;chk.disabled=true}S.inv.fifty--;save();$('#ff').disabled=true;$('#ff b').textContent=S.inv.fifty;buzz(12)};
   if($('#sk'))$('#sk').onclick=()=>{S.inv.skip--;save();R.q.shift();R.done++;R.res.push({e,ok:null});toast('⏭️ Skipped');next()};
 }
 function quit(){if(confirm('Quit? Progress in this session will be lost.')){clearInterval(timerId);R=null;home()}}
@@ -292,7 +299,7 @@ function judge(ok,ans){
     if(S.review[k]&&first){const b=S.review[k].box+1;if(b>3)delete S.review[k];else S.review[k]={box:b,due:Date.now()+[0,1,3,7][b]*DAY}}}
   else{R.mist.add(k);sfx.no();buzz([40,40,60]);S.review[k]={box:0,due:Date.now()};
     const lk=k.split('-').slice(0,3).join('-');if(!k.startsWith('iv'))S.misses[lk]=(S.misses[lk]||0)+1;
-    if(!timed()&&R.mode!=='placement')R.q.push(it);else R.done++;
+    if(!timed()&&R.mode!=='placement'&&R.mode!=='review')R.q.push(it);else R.done++;
     if(!noHearts()){if(S.hearts>=5)S.heartAt=Date.now();S.hearts=Math.max(0,S.hearts-1)}
     $('.qmain').classList.add('shake');if($('#hs'))$('#hs').textContent='❤️ '+S.hearts}
   if(R.mode==='practice'&&ok&&first&&R.pk&&S.misses[R.pk]){S.misses[R.pk]--;if(!S.misses[R.pk])delete S.misses[R.pk]}
@@ -311,7 +318,8 @@ function finish(timeUp){
   clearInterval(timerId);if(!R)return;const m=R.mode;
   let xp=0,gem=0,title='Lesson complete!',extra='';
   const answered=R.res.filter(r=>r.ok!==null).length;
-  if(m==='lesson'){S.done[R.key]=true;S.stats.lessons++;dl().l++;xp=10+R.correct*2;gem=5;if(!R.mist.size){S.stats.perfect++;gem=10;xp+=5;qBump('perfect')}qBump('lessons')}
+  const skipped=R.res.some(r=>r.ok===null);
+  if(m==='lesson'){S.done[R.key]=true;S.stats.lessons++;dl().l++;xp=10+R.correct*2;gem=5;if(!R.mist.size&&!skipped){S.stats.perfect++;gem=10;xp+=5;qBump('perfect')}qBump('lessons')}
   else if(m==='review'){S.stats.reviews++;xp=5+R.correct;title='Review complete!';qBump('review');S.hearts=Math.min(5,S.hearts+1);extra='<p class="muted">+1 ❤️ for reviewing</p>'}
   else if(m==='practice'||m==='saved'){xp=5+R.correct;title='Practice complete!';qBump('review')}
   else if(m==='challenge'){title=timeUp?'Time\'s up!':'Challenge complete!';xp=R.correct*2;gem=R.correct;S.stats.challenges++;if(R.correct>(S.stats.bestChal||0)){S.stats.bestChal=R.correct;extra='<p class="pill up">🎉 New personal best!</p>'}}
@@ -321,7 +329,7 @@ function finish(timeUp){
   const lv0=level().L;xp=addXP(xp);if(gem)S.gems+=gem;const lv1=level().L;if(lv1>lv0){S.gems+=20;extra+=`<p class="pill lvup">🆙 Level up! You reached level ${lv1} · +20 💎</p>`}checkBadges();save();sfx.win();buzz([30,50,30]);const secs=Math.round((Date.now()-R.t0)/1000);
   shell(`<div class="center"><div class="big">${m==='challenge'?'⏱️':m==='placement'?'🧭':'🏆'}</div><h1 class="h1">${title}</h1><p class="muted">${esc(R.name)}</p>
   <div class="cards"><div class="card xp">⚡<b>+${xp}</b>XP</div><div class="card">${m==='challenge'?'✅':'🎯'}<b>${m==='challenge'?R.correct:acc+'%'}</b>${m==='challenge'?'correct':'accuracy'}</div><div class="card gem">💎<b>+${gem}</b>gems</div></div>${extra}<p class="muted sm">⏱ ${Math.floor(secs/60)}m ${secs%60}s</p>
-  ${R.mist.size&&m!=='placement'?`<p class="muted">${R.mist.size} missed question(s) saved to Review.</p>`:m==='lesson'?'<p class="pill up">Flawless! +5 bonus gems</p>':''}</div>`,{nav:false});
+  ${R.mist.size&&m!=='placement'?`<p class="muted">${R.mist.size} missed question(s) saved to Review.</p>`:m==='lesson'&&!skipped?'<p class="pill up">Flawless! +5 bonus gems</p>':''}</div>`,{nav:false});
   app.insertAdjacentHTML('beforeend','<div class="foot"><div class="in"><button class="btn" id="h">Continue</button></div></div>');$('#h').onclick=home;$('#h').focus();
   confetti();
 }
@@ -344,7 +352,7 @@ function confetti(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)re
 document.addEventListener('keydown',ev=>{if(ev.target.tagName==='INPUT')return;const k=ev.key;
   if(/^[1-9]$/.test(k)&&$('#bank')){const c=$$('#bank .chip')[+k-1];if(c){c.click();ev.preventDefault()}return}
   if(k==='Backspace'&&$('#ans')){const c=[...$$('#ans .chip')].pop();if(c){c.click();ev.preventDefault()}return}
-  if(/^[1-9]$/.test(k)){const o=$$('.opt:not(:disabled)')[+k-1]||$$('.opt')[+k-1];if(o&&!o.disabled){o.click();ev.preventDefault()}}
+  if(/^[1-9]$/.test(k)){const o=$$('.opt')[+k-1];if(o&&!o.disabled){o.click();ev.preventDefault()}}
   else if(k==='Enter'){const b=$('#cont')||(!$('#chk')?.disabled&&$('#chk'))||$('#go')||$('#h');if(b&&document.activeElement!==b){b.click();ev.preventDefault()}}
   else if(k==='Escape'&&$('#x'))$('#x').click();
   else if((k==='h'||k==='H')&&$('#ff')&&!$('#ff').disabled)$('#ff').click();
