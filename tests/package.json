@@ -1,0 +1,14 @@
+{
+  "name": "byteryte-tests",
+  "private": true,
+  "scripts": {
+    "test": "node validate-data.js && node validate-static.js && node validate-docs.js && node validate-java.js && node validate-swift.js && playwright test",
+    "test:data": "node validate-data.js && node validate-static.js && node validate-docs.js && node validate-java.js && node validate-swift.js",
+    "test:ui": "playwright test",
+    "test:ui:deep": "playwright test --project=desk-light --project=phone-dark"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "^4.10.2",
+    "@playwright/test": "^1.56.1"
+  }
+}

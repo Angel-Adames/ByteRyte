@@ -16,12 +16,34 @@ if(!P||typeof P!=='object'||Array.isArray(P)){P={active:null,list:{}};const old=
   if(old){const p=Object.assign(NEWP(),{xp:old.xp||0,streak:old.streak||0,done:old.done||{},review:old.review||{},track:old.track||'java',onboarded:true});
     if(old.last){const d=new Date(old.last);if(!isNaN(d))p.last=iso(d)}p.best=p.streak;P.list[p.id]=p;P.active=p.id}}
 let S;
+function finite(v,d,min,max){const n=Number(v);if(!Number.isFinite(n))return d;let x=n;if(min!=null&&x<min)x=min;if(max!=null&&x>max)x=max;return x}
+function sanitize(p){
+  p.xp=Math.round(finite(p.xp,0,0,1e9));
+  p.streak=Math.round(finite(p.streak,0,0,1e5));
+  p.best=Math.round(finite(p.best,0,0,1e5));
+  p.hearts=Math.round(finite(p.hearts,5,0,5));
+  p.gems=Math.round(finite(p.gems,0,0,1e9));
+  p.freezes=Math.round(finite(p.freezes,0,0,2));
+  const g=Number(p.goal);p.goal=[10,30,50,100].includes(g)?g:30;
+  p.doubleUntil=finite(p.doubleUntil,0,0,null);
+  if(p.heartAt==null||!Number.isFinite(Number(p.heartAt)))p.heartAt=null;else p.heartAt=Number(p.heartAt);
+  p.name=String(p.name==null?'Learner':p.name).replace(/[\u0000-\u001f]/g,'').trim().slice(0,24)||'Learner';
+  p.avatar=String(p.avatar==null?'🦊':p.avatar).replace(/[\u0000-\u001f]/g,'').slice(0,32)||'🦊';
+  if(!Number.isFinite(Number(p.created)))p.created=Date.now();else p.created=Number(p.created);
+  p.inv=p.inv&&typeof p.inv==='object'?p.inv:{};
+  p.inv.fifty=Math.round(finite(p.inv.fifty,0,0,999));
+  p.inv.skip=Math.round(finite(p.inv.skip,0,0,999));
+  p.onboarded=!!p.onboarded;p.unlockAll=!!p.unlockAll;
+  if(!p.stats||typeof p.stats!=='object'||Array.isArray(p.stats))p.stats={};
+  ['answered','correct','perfect','lessons','interviews','bestIv','reviews','challenges','bought','bestChal','saved'].forEach(k=>{if(p.stats[k]!=null)p.stats[k]=Math.round(finite(p.stats[k],0,0,1e9))});
+  return p}
 function hydrate(){
   if(!P||typeof P!=='object'||Array.isArray(P))P={active:null,list:{}};
   if(!P.list||typeof P.list!=='object')P.list={};
   Object.keys(P.list).forEach(id=>{const d=NEWP(),raw=P.list[id]||{};
     const merged=Object.assign(d,raw,{id,inv:Object.assign({},d.inv,raw.inv||{}),stats:Object.assign({},d.stats,raw.stats||{}),saved:Object.assign({},raw.saved||{}),badges:Object.assign({},raw.badges||{}),done:Object.assign({},raw.done||{}),review:Object.assign({},raw.review||{}),misses:Object.assign({},raw.misses||{}),xpLog:Object.assign({},raw.xpLog||{}),dlog:Object.assign({},raw.dlog||{}),gates:Object.assign({},raw.gates||{})});
     if(!(raw.curriculum>=2))migrateProgress(merged);
+    sanitize(merged);
     P.list[id]=merged});
   if(!P.active||!P.list[P.active])P.active=Object.keys(P.list)[0]||null;
   S=P.active?P.list[P.active]:null}
@@ -94,7 +116,8 @@ function addXP(n){if(dblOn())n*=2;S.xp+=n;S.xpLog[today()]=(S.xpLog[today()]||0)
   qBump('xp',0);return n}
 function gems(n,why){S.gems+=n;if(why)toast(`💎 +${n} — ${why}`);sfx.coin()}
 // ---------- levels ----------
-function level(xp=S.xp){let L=1,need=100,base=0;while(xp>=base+need){base+=need;L++;need=100+50*(L-1)}return {L,into:xp-base,need}}
+function level(xp=S.xp){xp=Math.round(finite(xp,0,0,1e9));const T=n=>25*n*(n+3);let n=Math.floor((-3+Math.sqrt(9+xp/6.25))/2);if(!Number.isFinite(n)||n<0)n=0;if(n>100000)n=100000;while(n>0&&T(n)>xp)n--;while(T(n+1)<=xp&&n<100000)n++;return {L:n+1,into:xp-T(n),need:100+50*n}}
+const compact=n=>{n=Math.round(finite(n,0,-1e12,1e12));const s=n<0?'-':'';n=Math.abs(n);if(n>=1e9)return s+(n/1e9).toFixed(1).replace(/\.0$/,'')+'B';if(n>=1e6)return s+(n/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(n>=10000)return s+(n/1000).toFixed(n>=100000?0:1).replace(/\.0$/,'')+'k';return s+String(n)};
 // ---------- daily quests ----------
 const QPOOL={lessons:['📚','Complete 2 lessons',2],correct:['🎯','Get 15 answers right',15],perfect:['💯','Finish a lesson with no mistakes',1],chal:['⏱️','Get 5 right in speed challenges',5],review:['🔁','Finish a review or practice session',1],iv:['💼','Complete a mock interview',1]};
 function quests(){if(!S.qd||S.qd.day!==today()){const keys=Object.keys(QPOOL);let h=0;for(const c of today()+S.id)h=(h*31+c.charCodeAt(0))>>>0;const pick=[];while(pick.length<2){const k=keys[h%keys.length];if(!pick.includes(k))pick.push(k);h=(h*1103515245+12345)>>>0}S.qd={day:today(),ids:['xp',...pick],p:{},claimed:{},chest:false}}
@@ -129,13 +152,13 @@ function checkBadges(){BADGES.forEach(([id,ic,n,,f])=>{if(!S.badges[id]&&f()){S.
 const NAV=[['learn','📚','Learn'],['practice','🎯','Practice'],['interview','💼','Interview'],['shop','💎','Shop'],['profile','👤','Profile']];
 let cur='learn';
 function topbar(){const tight=S.streak>=100||S.gems>=1000;return `<header class="top${tight?' tight':''}"><button class="brand" data-go="learn" aria-label="ByteRyte home"><span class="logo">{ }</span>ByteRyte</button>
-<span class="stat" title="Day streak" aria-label="${S.streak} day streak">🔥 ${S.streak}</span><span class="stat" title="Gems" aria-label="${S.gems} gems">💎 ${S.gems}</span><span class="stat" title="${S.hearts<5&&nextHeart()?'Next heart in '+nextHeart():'Hearts full'}" aria-label="${S.hearts} hearts${S.hearts<5&&nextHeart()?', next in '+nextHeart():''}">❤️ ${S.hearts}</span>
+<span class="stat" title="Day streak" aria-label="${S.streak} day streak">🔥 ${compact(S.streak)}</span><span class="stat" title="Gems" aria-label="${S.gems} gems">💎 ${compact(S.gems)}</span><span class="stat" title="${S.hearts<5&&nextHeart()?'Next heart in '+nextHeart():'Hearts full'}" aria-label="${S.hearts} hearts${S.hearts<5&&nextHeart()?', next in '+nextHeart():''}">❤️ ${S.hearts}</span>
 <button class="icon" data-go="settings" aria-label="Settings">⚙️</button></header>`}
 function rail(){const lv=level(),wk=[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[iso(Date.now()-i*DAY)]||0),0);
-  return `<aside class="rail" aria-label="Your progress"><section class="rcard me"><span class="avatar">${S.avatar}</span><div><b>${esc(S.name)}</b><small>Level ${lv.L} · ${lv.into}/${lv.need} XP</small><div class="bar sm"><i style="width:${lv.into/lv.need*100}%"></i></div></div></section>
+  return `<aside class="rail" aria-label="Your progress"><section class="rcard me"><span class="avatar">${esc(S.avatar)}</span><div><b>${esc(S.name)}</b><small>Level ${lv.L} · ${lv.into}/${lv.need} XP</small><div class="bar sm"><i style="width:${lv.into/lv.need*100}%"></i></div></div></section>
   <section class="rcard"><div class="sgrid s2"><div class="scard">🔥<b>${S.streak}</b>streak</div><div class="scard">⚡<b>${wk}</b>XP this week</div></div></section>${questsHTML()}
   <section class="rcard promo"><b>💼 Interview coming up?</b><small>Run a timed mock screen and get a hire/no-hire scorecard.</small><button class="btn sm" data-go="interview">Practice now</button></section></aside>`}
-function shell(inner,{nav=true}={}){regen();document.querySelectorAll('.conf').forEach(c=>c.remove());app.className=nav?'withnav':'';app.innerHTML=topbar()+`<main id="main" class="fade">${/<h1[\s>]/.test(inner)?'':`<h1 class="sr">ByteRyte · ${({learn:'Learn path',practice:'Practice',interview:'Mock interview',shop:'Gem shop',profile:'Profile',settings:'Settings'})[cur]||'Home'}</h1>`}${inner}</main>`+(nav?rail():'')+(nav?`<nav class="bnav" aria-label="Main">${NAV.map(([id,ic,l])=>`<button data-go="${id}" class="${cur===id?'on':''}" ${cur===id?'aria-current="page"':''}><span>${ic}</span>${l}</button>`).join('')}</nav>`:'');
+function shell(inner,{nav=true}={}){regen();document.querySelectorAll('.conf').forEach(c=>c.remove());app.className=nav?'withnav':'';app.innerHTML=topbar()+`<main id="main" class="fade">${/<h1[\s>]/.test(inner)?'':`<h1 class="sr">ByteRyte · ${({learn:'Learn path',practice:'Practice',interview:'Mock interview',shop:'Gem shop',profile:'Profile',settings:'Settings'})[cur]||'Home'}</h1>`}${inner}</main>`+(nav?rail():'')+(nav?`<nav class="bnav" aria-label="Main">${NAV.map(([id,ic,l])=>`<button data-go="${id}" class="${cur===id?'on':''}" ${cur===id?'aria-current="page"':''}><span aria-hidden="true">${ic}</span>${l}</button>`).join('')}</nav>`:'');
   $$('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));window.scrollTo(0,0)}
 function go(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,settings}[v]||home)()}
 // ---------- learn ----------
@@ -201,7 +224,7 @@ const ITEMS=[['hearts','❤️','Heart refill','Restore all 5 hearts now (otherw
 ['skip','⏭️','Skip question ×2','Skip a hard question without losing a heart',25,()=>true,()=>{S.inv.skip=(S.inv.skip||0)+2}],
 ['double','⚡','Double XP (15 min)','Earn 2× XP for 15 minutes',40,()=>true,()=>{S.doubleUntil=Math.max(Date.now(),S.doubleUntil)+15*60000}]];
 function shop(){cur='shop';daily();
-  shell(`<h1 class="h1">Gem Shop</h1><div class="wallet"><span>💎</span><div><b>${S.gems}</b><small>gems · earned from lessons, goals, streaks and interviews. Just for fun: no real money involved.</small></div></div>
+  shell(`<h1 class="h1">Gem Shop</h1><div class="wallet" aria-label="${S.gems} gems"><span>💎</span><div><b>${compact(S.gems)}</b><small>gems · earned from lessons, goals, streaks and interviews. Just for fun: no real money involved.</small></div></div>
   <div class="inv">Your stuff: ✂️ ${S.inv.fifty||0} · ⏭️ ${S.inv.skip||0} · 🧊 ${S.freezes}/2 ${dblOn()?'· ⚡ active':''}</div>
   ${ITEMS.map(([id,ic,n,d,c,ok])=>{const ready=ok()&&S.gems>=c;const label=!ok()?(id==='hearts'?'Full':'Max'):S.gems<c?`Need ${c-S.gems}`:`💎 ${c}`;return `<div class="sitem"><span class="pic">${ic}</span><div><b>${n}</b><small>${d}</small></div><button class="btn sm buy" data-id="${id}" ${ready?'':'disabled'} aria-label="${esc(n)}: ${label}">${label}</button></div>`}).join('')}
   <h2 class="h2">How to earn gems</h2><ul class="muted earn"><li>Finish a lesson: +5 (perfect lesson: +10)</li><li>Hit your daily goal: +10</li><li>Every 7-day streak: +20</li><li>Mock interview: +2 per correct answer</li><li>Speed challenge: +1 per correct answer</li></ul>`);
@@ -213,7 +236,7 @@ function profile(){cur='profile';daily();
   const dow=new Date().getDay(),cal=[...Array(35)].map((_,i)=>{const off=dow+28-i;return off<0?null:iso(Date.now()-off*DAY)}).slice(0);const lv=level();
   const acc=S.stats.answered?Math.round(S.stats.correct/S.stats.answered*100):0;
   const others=Object.values(P.list).filter(p=>p.id!==S.id);
-  shell(`<section class="phead"><button class="avatar big" id="edit" aria-label="Edit profile">${S.avatar}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small><br><button class="link" id="edit2">Edit profile</button></div></section>
+  shell(`<section class="phead"><button class="avatar big" id="edit" aria-label="Edit profile">${esc(S.avatar)}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small><br><button class="link" id="edit2">Edit profile</button></div></section>
   <div class="lvl"><div class="row"><b>Level ${lv.L}</b><small class="muted">${lv.need-lv.into} XP to level ${lv.L+1}</small></div><div class="bar"><i style="width:${lv.into/lv.need*100}%"></i></div></div>
   <div class="sgrid"><div class="scard">🔥<b>${S.streak}</b>Day streak</div><div class="scard">🏆<b>${S.best}</b>Best streak</div><div class="scard">⚡<b>${S.xp}</b>Total XP</div><div class="scard">💎<b>${S.gems}</b>Gems</div><div class="scard">📚<b>${S.stats.lessons}</b>Lessons</div><div class="scard">🎯<b>${acc}%</b>Accuracy</div></div>
   <button class="pcard" id="recap"><span class="pic">📅</span><span><b>Weekly recap</b><small>Your last 7 days at a glance</small></span></button>
@@ -221,7 +244,7 @@ function profile(){cur='profile';daily();
   <div class="league"><b>Weekly league: you vs. last week</b><div class="row"><span>This week</span><b>${tw} XP</b></div><div class="row"><span>Last week</span><b>${lw} XP</b></div><div class="pill ${tw>=lw?'up':''}">${tw>lw?'📈 Promoted pace! Beat last week by '+(tw-lw)+' XP':tw===lw?'Tied with last week':'📉 '+(lw-tw)+' XP to beat last week'}</div></div>
   <h2 class="h2">Streak calendar</h2><div class="cal" role="img" aria-label="Activity calendar, last 5 weeks">${['S','M','T','W','T','F','S'].map(x=>`<span>${x}</span>`).join('')}${cal.map(d=>{if(!d)return '<i class="fut"></i>';const v=S.xpLog[d]||0;return `<i title="${d}: ${v} XP" class="l${v?v>=S.goal?3:v>=S.goal/2?2:1:0} ${d===today()?'today':''}"></i>`}).join('')}</div><div class="legend">Less <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i> More · goal met = darkest</div>
   <h2 class="h2">Achievements · ${Object.keys(S.badges).length}/${BADGES.length}</h2><div class="badges" role="list">${BADGES.map(([id,ic,n,d,,pr])=>{const got=S.badges[id],pv=!got&&pr?pr():null;return `<div class="badge ${got?'got':''}" role="listitem" aria-label="${esc(n)}: ${esc(d)}. ${got?'Unlocked':'Locked'+(pv?`, ${Math.min(pv[0],pv[1])} of ${pv[1]}`:'')}"><span aria-hidden="true">${got?ic:'🔒'}</span><b>${n}</b><small>${d}</small>${got?`<small class="bdate">✓ ${got>1e12?new Date(got).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'Unlocked'}</small>`:pv?`<div class="bprog" aria-hidden="true"><i style="width:${Math.min(100,pv[0]/pv[1]*100)}%"></i></div><small class="bdate">${Math.min(pv[0],pv[1])}/${pv[1]}</small>`:''}</div>`}).join('')}</div>
-  <h2 class="h2">Profiles on this device</h2>${others.map(p=>`<div class="sitem"><span class="pic">${p.avatar}</span><div><b>${esc(p.name)}</b><small>${p.xp} XP · 🔥 ${p.streak}</small></div><button class="btn sm alt sw" data-id="${p.id}">Switch</button></div>`).join('')}
+  <h2 class="h2">Profiles on this device</h2>${others.map(p=>`<div class="sitem"><span class="pic">${esc(p.avatar)}</span><div><b>${esc(p.name)}</b><small>${p.xp} XP · 🔥 ${p.streak}</small></div><button class="btn sm alt sw" data-id="${p.id}">Switch</button></div>`).join('')}
   <button class="btn alt" id="addp">＋ Add profile</button>`);
   $('#edit').onclick=$('#edit2').onclick=()=>editProfile(false);$('#recap').onclick=recap;
   $('#addp').onclick=()=>{const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p;save();onboard()};
@@ -263,7 +286,7 @@ function settings(){cur='settings';daily();
   <div class="set row"><b>Unlock all lessons</b><button class="switch ${S.unlockAll?'on':''}" id="ua" role="switch" aria-checked="${S.unlockAll}" aria-label="Unlock all lessons"><i></i></button></div>
   <div class="set"><b>Daily goal</b><div class="seg">${[10,30,50,100].map(g=>`<button class="${S.goal===g?'on':''}" data-g="${g}">${g} XP</button>`).join('')}</div></div>
   <div class="set"><b>Backup</b><p class="muted">Export all profiles to a JSON file, or import one to move progress to another device.</p><div class="row2"><button class="btn sm alt" id="exp">⬇️ Export</button><label class="btn sm alt" for="imp">⬆️ Import</label><input type="file" id="imp" accept="application/json" hidden></div></div>
-  <div class="set"><b>Keyboard shortcuts (desktop)</b><p class="muted">1–6 choose an answer (or a code line in Arrange) · Backspace undo last line · Enter check / continue · H 50/50 · S skip · Esc quit</p></div>
+  <div class="set"><b>Keyboard shortcuts (desktop)</b><p class="muted">1–9 choose an answer (or a code line in Arrange) · Backspace undo last line · Enter check / continue · H 50/50 · S skip · Esc quit</p></div>
   <div class="set"><b>Danger zone</b><button class="btn sm red" id="rs">Reset ${esc(S.name)}'s progress</button></div>
   <p class="note">ByteRyte · original app, not affiliated with any other language-learning brand. All data stays on this device.</p>`);
   $$('[data-th]').forEach(b=>b.onclick=()=>{G.theme=b.dataset.th;saveG();applyTheme();settings()});
@@ -272,7 +295,7 @@ function settings(){cur='settings';daily();
   $('#ua').onclick=()=>{S.unlockAll=!S.unlockAll;save();settings()};
   $$('[data-g]').forEach(b=>b.onclick=()=>{S.goal=+b.dataset.g;save();settings()});
   $('#exp').onclick=()=>{const blob=new Blob([JSON.stringify({app:'ByteRyte',v:2,profiles:P,settings:G},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`byteroots-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
-  $('#imp').onchange=e=>{const f=e.target.files[0];if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!d.profiles?.list)throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(d.settings&&typeof d.settings==='object'){G=Object.assign({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}save();daily();toast('✅ Progress imported');home()}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
+  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!d.profiles?.list)throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(d.settings&&typeof d.settings==='object'){G=Object.assign({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}save();daily();toast('✅ Progress imported');home()}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
   $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;S=n;save();home()}};
 }
 // ---------- lesson engine ----------
@@ -297,7 +320,7 @@ function next(){
   if(e.t==='fix')h+=`<p class="fixnote">Pick the line that makes this correct.</p>`;
   if(e.t==='ar')h+=`<div class="zone" id="ans" aria-label="Your answer"><span class="ph">Tap lines below in the right order</span></div><div class="zone bank" id="bank"></div>`;
   else{const lst=e.t==='bug'?e.lines.map((x,i)=>[x,i]):shuffle(e.opts.map((x,i)=>[x,i]));
-    h+=`<div class="opts" role="radiogroup">`+lst.map(([x,i],n)=>`<button role="radio" aria-checked="false" class="opt ${e.t!=='mc'?'code':''}" data-i="${i}"><kbd>${n+1}</kbd><span>${e.t==='mc'?esc(x):hl(x)}</span></button>`).join('')+`</div>`}
+    h+=`<div class="opts" role="radiogroup">`+lst.map(([x,i],n)=>`<button role="radio" aria-checked="false" class="opt ${e.t!=='mc'?'code':''}" data-i="${i}"><kbd>${n+1}</kbd>${e.t==='bug'?`<span class="sr">Line ${n+1}. </span>`:''}<span>${e.t==='mc'?esc(x):hl(x)}</span></button>`).join('')+`</div>`}
   const pw=R.mode!=='placement'&&R.mode!=='interview';
   h+=`</main><footer class="foot" id="ft"><div class="in">${pw?`<div class="pups"><button class="pup" id="ff" ${S.inv.fifty&&e.t!=='ar'&&e.t!=='bug'?'':'disabled'}>✂️ 50/50 <b>${S.inv.fifty||0}</b><span class="sr"> hint, ${S.inv.fifty||0} left</span></button><button class="pup" id="sk" ${S.inv.skip?'':'disabled'}>⏭️ Skip <b>${S.inv.skip||0}</b><span class="sr">, ${S.inv.skip||0} left</span></button></div>`:''}<button class="btn" id="chk" disabled>Check</button></div></footer>`;
   app.className='';app.innerHTML=h;tick&&timed()&&tick();
@@ -309,9 +332,10 @@ function next(){
   else{$$('.opt').forEach(b=>b.onclick=()=>{if(b.disabled)return;$$('.opt').forEach(o=>{o.classList.remove('sel');o.setAttribute('aria-checked','false')});b.classList.add('sel');b.setAttribute('aria-checked','true');sel=+b.dataset.i;chk.disabled=false;tone(520,.04)});
     chk.onclick=()=>{$$('.opt').forEach(o=>{o.disabled=true;if(+o.dataset.i===e.a)o.classList.add('right');else if(+o.dataset.i===sel)o.classList.add('wrong')});
       judge(sel===e.a,e.t==='bug'?`Line ${e.a+1}: ${e.lines[e.a].trim()}`:e.opts[e.a])}}
-  if($('#ff'))$('#ff').onclick=()=>{if(!S.inv.fifty)return;const wrong=shuffle($$('.opt').filter(o=>+o.dataset.i!==e.a&&!o.disabled)).slice(0,2);wrong.forEach(o=>{o.disabled=true;o.classList.add('gone');o.classList.remove('sel')});if(wrong.some(o=>+o.dataset.i===sel)){sel=null;chk.disabled=true}S.inv.fifty--;save();$('#ff').disabled=true;$('#ff b').textContent=S.inv.fifty;buzz(12)};
+  if($('#ff'))$('#ff').onclick=()=>{if(!S.inv.fifty)return;const wrong=shuffle($$('.opt').filter(o=>+o.dataset.i!==e.a&&!o.disabled)).slice(0,2);wrong.forEach(o=>{o.disabled=true;o.classList.add('gone');o.classList.remove('sel')});let n=1;$$('.opt').forEach(o=>{const kbd=o.querySelector('kbd');if(!kbd)return;kbd.textContent=o.disabled?'':String(n++)});if(wrong.some(o=>+o.dataset.i===sel)){sel=null;chk.disabled=true}S.inv.fifty--;save();$('#ff').disabled=true;$('#ff b').textContent=S.inv.fifty;buzz(12)};
   if($('#sk'))$('#sk').onclick=()=>{S.inv.skip--;save();R.q.shift();R.done++;R.res.push({e,ok:null});toast('⏭️ Skipped');next()};
 }
+function shield(ms=450){const ft=$('#ft');if(!ft)return;ft.style.pointerEvents='none';const token=String(Date.now()+Math.random());ft.dataset.shield=token;setTimeout(()=>{if(ft.isConnected&&ft.dataset.shield===token)ft.style.pointerEvents=''},ms)}
 function quit(){if(confirm('Quit? Progress in this session will be lost.')){clearInterval(timerId);R=null;home()}}
 function judge(ok,ans){
   const it=R.q.shift(),{e,k}=it,first=!R.mist.has(k);
@@ -330,7 +354,7 @@ function judge(ok,ans){
   const ft=$('#ft');ft.className='foot sheet '+(ok?'ok':'no');ft.setAttribute('role','alert');
   ft.innerHTML=`<div class="in"><h2 class="fbh">${ok?['Nice!','Correct!','You got it!','Solid!','Exactly!'][Math.random()*5|0]:'Not quite'}</h2>${ok?'':`<p class="ca"><b>Correct answer:</b></p><pre class="code sm" tabindex="0">${hl(ans)}</pre>`}<p>${esc(e.why)}</p><div class="fbx">${docLink(docUrl(k))}<button class="bm" id="bm" aria-pressed="${!!S.saved[k]}">${S.saved[k]?'★ Saved':'☆ Save question'}</button></div><button class="btn ${ok?'':'red'}" id="cont">Continue</button></div>`;
   $('#bm').onclick=()=>{if(S.saved[k])delete S.saved[k];else S.saved[k]=Date.now();save();const on=!!S.saved[k];$('#bm').textContent=on?'★ Saved':'☆ Save question';$('#bm').setAttribute('aria-pressed',on);if(on){S.stats.saved=(S.stats.saved||0)+1;checkBadges()}};
-  requestAnimationFrame(()=>requestAnimationFrame(()=>ft.classList.add('show')));
+  requestAnimationFrame(()=>requestAnimationFrame(()=>ft.classList.add('show')));shield();
   $('#cont').focus({preventScroll:true});
   $('#cont').onclick=()=>{if(!ok&&!noHearts()){daily();if(S.hearts<=0){clearInterval(timerId);return outOfHearts()}}next()};
 }
@@ -341,7 +365,7 @@ function finish(timeUp){
   let xp=0,gem=0,title='Lesson complete!',extra='';
   const answered=R.res.filter(r=>r.ok!==null).length;
   const skipped=R.res.some(r=>r.ok===null);
-  if(m==='lesson'){S.done[R.key]=true;S.stats.lessons++;dl().l++;xp=10+R.correct*2;gem=5;if(!R.mist.size&&!skipped){S.stats.perfect++;gem=10;xp+=5;qBump('perfect')}qBump('lessons')}
+  if(m==='lesson'){const fresh=!S.done[R.key];S.done[R.key]=true;if(fresh){S.stats.lessons++;dl().l++;qBump('lessons')}xp=10+R.correct*2;gem=5;if(!R.mist.size&&!skipped){S.stats.perfect++;gem=10;xp+=5;qBump('perfect')}}
   else if(m==='review'){S.stats.reviews++;xp=5+R.correct;title='Review complete!';qBump('review');S.hearts=Math.min(5,S.hearts+1);extra='<p class="muted">+1 ❤️ for reviewing</p>'}
   else if(m==='practice'||m==='saved'){xp=5+R.correct;title='Practice complete!';qBump('review')}
   else if(m==='challenge'){title=timeUp?'Time\'s up!':'Challenge complete!';xp=R.correct*2;gem=R.correct;S.stats.challenges++;if(R.correct>(S.stats.bestChal||0)){S.stats.bestChal=R.correct;extra='<p class="pill up">🎉 New personal best!</p>'}}
@@ -374,7 +398,7 @@ function confetti(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)re
 document.addEventListener('keydown',ev=>{if(ev.target.tagName==='INPUT')return;const k=ev.key;
   if(/^[1-9]$/.test(k)&&$('#bank')){const c=$$('#bank .chip')[+k-1];if(c){c.click();ev.preventDefault()}return}
   if(k==='Backspace'&&$('#ans')){const c=[...$$('#ans .chip')].pop();if(c){c.click();ev.preventDefault()}return}
-  if(/^[1-9]$/.test(k)){const o=$$('.opt')[+k-1];if(o&&!o.disabled){o.click();ev.preventDefault()}}
+  if(/^[1-9]$/.test(k)){const o=$$('.opt').filter(o=>!o.disabled)[+k-1];if(o){o.click();ev.preventDefault()}}
   else if(k==='Enter'){const b=$('#cont')||(!$('#chk')?.disabled&&$('#chk'))||$('#go')||$('#h');if(b&&document.activeElement!==b){b.click();ev.preventDefault()}}
   else if(k==='Escape'&&$('#x'))$('#x').click();
   else if((k==='h'||k==='H')&&$('#ff')&&!$('#ff').disabled)$('#ff').click();
