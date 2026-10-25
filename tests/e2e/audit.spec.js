@@ -125,7 +125,7 @@ test('a lesson tab keeps xp and done from a lesson the other tab finished', asyn
   await answerSession(other);
   const finished = await other.evaluate(() => {
     const row = JSON.parse(localStorage.getItem('byteroots-profiles')).list.ptest;
-    return { xp: row.xp, done: !!row.done['java.run'], lessons: row.stats.lessons, streak: row.streak, last: row.last };
+    return { xp: row.xp, done: !!row.done['java.run'], lessons: row.stats.lessons, streak: row.streak, last: row.last, badges: Object.keys(row.badges || {}), questLessons: (row.qd && row.qd.p && row.qd.p.lessons) || 0 };
   });
   expect(finished.done).toBe(true);
   expect(finished.xp).toBeGreaterThan(0);
@@ -133,7 +133,7 @@ test('a lesson tab keeps xp and done from a lesson the other tab finished', asyn
   await answerOne(page);
   const stored = await page.evaluate(() => {
     const row = JSON.parse(localStorage.getItem('byteroots-profiles')).list.ptest;
-    return { xp: row.xp, done: !!row.done['java.run'], lessons: row.stats.lessons, streak: row.streak, last: row.last, name: row.name };
+    return { xp: row.xp, done: !!row.done['java.run'], lessons: row.stats.lessons, streak: row.streak, last: row.last, name: row.name, badges: Object.keys(row.badges || {}), questLessons: (row.qd && row.qd.p && row.qd.p.lessons) || 0 };
   });
   expect(stored.name).toBe('Ada');
   expect(stored.done).toBe(true);
@@ -141,6 +141,10 @@ test('a lesson tab keeps xp and done from a lesson the other tab finished', asyn
   expect(stored.lessons).toBe(finished.lessons);
   expect(stored.streak).toBe(finished.streak);
   expect(stored.last).toBe(finished.last);
+  expect(finished.badges).toContain('first');
+  expect(stored.badges).toEqual(expect.arrayContaining(finished.badges));
+  expect(finished.questLessons).toBeGreaterThan(0);
+  expect(stored.questLessons).toBe(finished.questLessons);
   await other.close();
 });
 

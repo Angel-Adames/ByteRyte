@@ -9,7 +9,7 @@ const bad = m => issues.push(m);
 const app = read('app.js'), sw = read('sw.js'), index = read('index.html'), manifest = read('manifest.webmanifest'), css = read('style.css'), boot = read('boot.js');
 const all = [app, sw, index, manifest, css, boot, read('data.js'), read('interview.js'), read('README.md')].join('\n');
 
-if (!/const C='byteryte-v22'/.test(sw)) bad('service worker cache is not byteryte-v22');
+if (!/const C='byteryte-v23'/.test(sw)) bad('service worker cache is not byteryte-v23');
 if (!app.includes('aria-labelledby="appear"')) bad('appearance group has no name');
 if (!app.includes('aria-labelledby="prompt"')) bad('answer group has no name');
 if (!app.includes('Adds 15 minutes. A lesson you start while it is active earns 2× XP')) bad('double xp copy');

@@ -104,7 +104,7 @@ const econBases={};
 function econSnap(p){return {gems:p.gems,hearts:p.hearts,freezes:p.freezes||0,fifty:(p.inv&&p.inv.fifty)||0,skip:(p.inv&&p.inv.skip)||0,doubleUntil:p.doubleUntil||0,goal:p.goal,goalDay:p.goalDay??null,heartAt:p.heartAt??null,heartDay:p.heartDay??null,bought:(p.stats&&p.stats.bought)||0}}
 const progBases={};
 function copyMap(o){const out={};if(o&&typeof o==='object'&&!Array.isArray(o))Object.keys(o).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;out[k]=o[k]});return out}
-function progSnap(p){const st=p.stats||{};return {xp:p.xp||0,streak:p.streak||0,best:p.best||0,last:p.last??null,lessons:st.lessons||0,perfect:st.perfect||0,xpLog:copyMap(p.xpLog),done:copyMap(p.done),misses:copyMap(p.misses)}}
+function progSnap(p){const st=p.stats||{},q=p.qd&&typeof p.qd==='object'?p.qd:{};return {xp:p.xp||0,streak:p.streak||0,best:p.best||0,last:p.last??null,lessons:st.lessons||0,perfect:st.perfect||0,xpLog:copyMap(p.xpLog),done:copyMap(p.done),misses:copyMap(p.misses),badges:copyMap(p.badges),qday:q.day||null,qp:copyMap(q.p),qclaimed:copyMap(q.claimed),qchest:!!q.chest}}
 function rememberEcon(p){if(p&&p.id){econBases[p.id]=econSnap(p);progBases[p.id]=progSnap(p)}}
 function rememberAll(){Object.keys(econBases).forEach(k=>delete econBases[k]);Object.keys(progBases).forEach(k=>delete progBases[k]);Object.values(P.list||{}).forEach(rememberEcon)}
 function mergeEcon(mine,remote,base){
@@ -142,6 +142,16 @@ function mergeProg(mine,remote,base){
   else{const rl=remote.last??null,ml=mine.last??null,last=!ml?rl:!rl?ml:(ml>=rl?ml:rl);if(last&&last===ml&&last===rl)mine.streak=Math.max(mine.streak||0,remote.streak||0);else if(last===rl)mine.streak=remote.streak||0;mine.last=last;mine.best=Math.max(mine.best||0,remote.best||0,mine.streak||0)}
   mine.review=mine.review&&typeof mine.review==='object'&&!Array.isArray(mine.review)?mine.review:{};
   Object.keys(remote.review||{}).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;if(!mine.review[k])mine.review[k]=remote.review[k]});
+  mine.badges=copyMap(mine.badges);
+  Object.keys(remote.badges||{}).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;if(!mine.badges[k])mine.badges[k]=remote.badges[k]});
+  if(mine.qd&&remote.qd&&mine.qd.day&&mine.qd.day===remote.qd.day&&mine.qd.day===base.qday){
+    const qk=new Set([...Object.keys(base.qp||{}),...Object.keys(remote.qd.p||{}),...Object.keys(mine.qd.p||{})]);
+    mine.qd.p=copyMap(mine.qd.p);
+    qk.forEach(k=>{const v=add(remote.qd.p&&remote.qd.p[k],mine.qd.p[k],base.qp&&base.qp[k],0,1e9);if(v)mine.qd.p[k]=v;else delete mine.qd.p[k]});
+    mine.qd.claimed=copyMap(mine.qd.claimed);
+    Object.keys(remote.qd.claimed||{}).forEach(k=>{if(remote.qd.claimed[k])mine.qd.claimed[k]=1});
+    if(remote.qd.chest||base.qchest)mine.qd.chest=true;
+  }
   sanitize(mine);
 }
 hydrate();
