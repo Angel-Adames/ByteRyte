@@ -132,7 +132,7 @@ function home(){
   h+=`</div>`;
   if(locked)h+=`<div class="branchbox">🔒 This branch grows off the Java trunk. Finish <b>Java Unit 1</b> to unlock it.</div>`;
   t.units.forEach((u,ui)=>{const ud=u.lessons.filter((l,li)=>S.done[`${t.id}-${ui}-${li}`]).length;
-    h+=`<div class="unit" style="--c:${t.color}"><div>${esc(u.name)}<small>${ud}/${u.lessons.length} lessons complete</small></div><div class="uright"><button class="guide" data-u="${ui}" aria-label="Open ${esc(u.name)} guidebook">📖 Guide</button><div class="ring" style="--p:${ud/u.lessons.length*100}" aria-hidden="true"></div></div></div><div class="path" style="--c:${t.color}">`;
+    h+=`<div class="unit" style="--c:${t.color}"><div>${esc(u.name)}<small>${ud}/${u.lessons.length} lessons complete</small></div><div class="uright"><button class="guide" data-u="${ui}" aria-label="📖 Guide, ${esc(u.name)}">📖 Guide</button><div class="ring" style="--p:${ud/u.lessons.length*100}" aria-hidden="true"></div></div></div><div class="path" style="--c:${t.color}">`;
     u.lessons.forEach((l,li)=>{const i=ls.findIndex(x=>x.ui===ui&&x.li===li),k=ls[i].key,open=!locked&&(S.unlockAll||i<=firstOpen||firstOpen<0||S.done[k]),isCur=open&&!S.done[k]&&i===firstOpen;
       const off=[0,48,68,48,0,-48,-68,-48][i%8];
       h+=`<div class="nodewrap ${isCur?'hascur':''}" style="--x:${off}px">${isCur?'<div class="startbub">START</div>':''}<button class="node ${open?'':'lock'} ${S.done[k]?'done':''} ${isCur?'cur':''}" style="--c:${t.color}" data-k="${k}" ${open?'':'disabled'} aria-label="${esc(l.name)}${S.done[k]?' (complete)':open?'':' (locked)'}">${S.done[k]?'★':open?t.icon:'🔒'}</button><div class="nlab">${esc(l.name)}</div></div>`});
@@ -264,7 +264,7 @@ function start(items,opt){
   clearInterval(timerId);daily();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0)return outOfHearts();
   R=Object.assign({q:items.slice(),total:items.length,done:0,correct:0,mist:new Set(),res:[],t0:Date.now()},opt);
   if(R.mode==='challenge'||R.mode==='interview'){R.end=Date.now()+R.secs*1000;timerId=setInterval(tick,250)}
-  app.className='';if(R.tip){app.innerHTML=`<div class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar"><i style="width:0"></i></div></div><main class="fade"><div class="kind">💡 Before you start</div><h1 class="h1">${esc(R.name)}</h1><div class="tip">${esc(R.tip)}</div>${sheetHTML(R.sheet)}<p class="muted">${R.total} exercises · mistakes come back at the end and in Review.</p></main><div class="foot"><div class="in"><button class="btn" id="go">Start lesson</button></div></div>`;
+  app.className='';if(R.tip){app.innerHTML=`<header class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar"><i style="width:0"></i></div></header><main class="fade"><div class="kind">💡 Before you start</div><h1 class="h1">${esc(R.name)}</h1><div class="tip">${esc(R.tip)}</div>${sheetHTML(R.sheet)}<p class="muted">${R.total} exercises · mistakes come back at the end and in Review.</p></main><footer class="foot"><div class="in"><button class="btn" id="go">Start lesson</button></div></footer>`;
     $('#x').onclick=home;$('#go').onclick=next;$('#go').focus()}else next();
 }
 function tick(){const left=Math.max(0,R.end-Date.now()),el=$('#tmr');if(el){el.textContent=`⏱ ${Math.floor(left/60000)}:${String(Math.floor(left/1000)%60).padStart(2,'0')}`;el.classList.toggle('warn',left<10000)}if(!left){clearInterval(timerId);finish(true)}}
@@ -274,7 +274,7 @@ function next(){
   if(!R.q.length)return finish();
   const {e}=R.q[0],tr=e.tag?`<span class="tag">${e.tag}</span>`:'';let sel=null;
   const pct=timed()?R.done/Math.max(R.done+1,R.mode==='challenge'?R.done+1:R.total)*100:R.done/R.total*100;
-  let h=`<div class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar" role="progressbar" aria-label="Lesson progress" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>${R.mode==='challenge'?`<span class="stat" aria-live="polite">✅ ${R.correct}</span>`:''}${timed()?`<span class="stat tmr" id="tmr">⏱</span>`:noHearts()?`<span class="stat">${R.done}/${R.total}</span>`:`<span class="stat" id="hs">❤️ ${S.hearts}</span>`}</div>
+  let h=`<header class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar" role="progressbar" aria-label="Lesson progress" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>${R.mode==='challenge'?`<span class="stat" aria-live="polite">✅ ${R.correct}</span>`:''}${timed()?`<span class="stat tmr" id="tmr">⏱</span>`:noHearts()?`<span class="stat">${R.done}/${R.total}</span>`:`<span class="stat" id="hs">❤️ ${S.hearts}</span>`}</header>
   <main class="fade qmain"><div class="kind">${NAMES[e.t]} ${tr}${dblOn()?'<span class="tag gold">2× XP</span>':''}</div><h1 class="q">${esc(e.q||'What does this print?')}</h1>`;
   if(e.code)h+=`<pre class="code" tabindex="0" aria-label="Code">${hl(e.code)}</pre>`;
   if(e.t==='fix')h+=`<p class="fixnote">Pick the line that makes this correct.</p>`;
@@ -282,7 +282,7 @@ function next(){
   else{const lst=e.t==='bug'?e.lines.map((x,i)=>[x,i]):shuffle(e.opts.map((x,i)=>[x,i]));
     h+=`<div class="opts" role="radiogroup">`+lst.map(([x,i],n)=>`<button role="radio" aria-checked="false" class="opt ${e.t!=='mc'?'code':''}" data-i="${i}"><kbd>${n+1}</kbd><span>${e.t==='mc'?esc(x):hl(x)}</span></button>`).join('')+`</div>`}
   const pw=R.mode!=='placement'&&R.mode!=='interview';
-  h+=`</main><div class="foot" id="ft"><div class="in">${pw?`<div class="pups"><button class="pup" id="ff" ${S.inv.fifty&&e.t!=='ar'&&e.t!=='bug'?'':'disabled'} aria-label="50/50 hint, ${S.inv.fifty||0} left">✂️ 50/50 <b>${S.inv.fifty||0}</b></button><button class="pup" id="sk" ${S.inv.skip?'':'disabled'} aria-label="Skip, ${S.inv.skip||0} left">⏭️ Skip <b>${S.inv.skip||0}</b></button></div>`:''}<button class="btn" id="chk" disabled>Check</button></div></div>`;
+  h+=`</main><footer class="foot" id="ft"><div class="in">${pw?`<div class="pups"><button class="pup" id="ff" ${S.inv.fifty&&e.t!=='ar'&&e.t!=='bug'?'':'disabled'}>✂️ 50/50 <b>${S.inv.fifty||0}</b><span class="sr"> hint, ${S.inv.fifty||0} left</span></button><button class="pup" id="sk" ${S.inv.skip?'':'disabled'}>⏭️ Skip <b>${S.inv.skip||0}</b><span class="sr">, ${S.inv.skip||0} left</span></button></div>`:''}<button class="btn" id="chk" disabled>Check</button></div></footer>`;
   app.className='';app.innerHTML=h;tick&&timed()&&tick();
   $('#x').onclick=quit;
   const chk=$('#chk');
@@ -335,7 +335,7 @@ function finish(timeUp){
   shell(`<div class="center finish"><div class="trophy" aria-hidden="true"><div class="big">${m==='challenge'?'⏱️':m==='placement'?'🧭':'🏆'}</div></div><h1 class="h1">${title}</h1><p class="muted">${esc(R.name)}</p>
   <div class="cards"><div class="card xp">⚡<b>+${xp}</b>XP</div><div class="card">${m==='challenge'?'✅':'🎯'}<b>${m==='challenge'?R.correct:acc+'%'}</b>${m==='challenge'?'correct':'accuracy'}</div><div class="card gem">💎<b>+${gem}</b>gems</div></div>${extra}<p class="muted sm">⏱ ${Math.floor(secs/60)}m ${secs%60}s</p>
   ${R.mist.size&&m!=='placement'?`<p class="muted">${plural(R.mist.size,'missed question')} saved to Review.</p>`:m==='lesson'&&!skipped?'<p class="pill up">Flawless — 10 gems</p>':''}</div>`,{nav:false});
-  app.insertAdjacentHTML('beforeend','<div class="foot"><div class="in"><button class="btn" id="h">Continue</button></div></div>');$('#h').onclick=home;$('#h').focus();
+  app.insertAdjacentHTML('beforeend','<footer class="foot"><div class="in"><button class="btn" id="h">Continue</button></div></footer>');$('#h').onclick=home;$('#h').focus();
   confetti();
 }
 function ivSummary(timeUp){
@@ -349,7 +349,7 @@ function ivSummary(timeUp){
   <div class="cards"><div class="card xp">⚡<b>+${xp}</b>XP</div><div class="card gem">💎<b>+${gem}</b>gems</div></div></div>
   <h2 class="h2">By topic</h2>${Object.entries(byTag).map(([t,[c,n]])=>`<div class="trow"><span>${t}</span><div class="bar"><i style="width:${c/n*100}%"></i></div><b>${c}/${n}</b></div>`).join('')}
   <h2 class="h2">Review your answers</h2>${R.res.map((r,i)=>`<details class="rev ${r.ok?'ok':'no'}"><summary>${r.ok?'✅':r.ok===null?'⏭️':'❌'} Q${i+1} · ${esc(r.e.tag)} — ${esc((r.e.q||'Predict the output').slice(0,60))}</summary>${r.e.code?`<pre class="code sm" tabindex="0">${hl(r.e.code)}</pre>`:''}${r.e.t==='ar'?`<p><b>Answer:</b></p><pre class="code sm" tabindex="0">${hl(r.e.lines.join('\n'))}</pre>`:`<p><b>Answer:</b> ${esc(r.e.t==='bug'?'Line '+(r.e.a+1)+': '+r.e.lines[r.e.a].trim():r.e.opts[r.e.a])}</p>`}<p>${esc(r.e.why)}</p></details>`).join('')}`,{nav:false});
-  app.insertAdjacentHTML('beforeend','<div class="foot"><div class="in"><button class="btn" id="h">Done</button></div></div>');$('#h').onclick=ivHome;
+  app.insertAdjacentHTML('beforeend','<footer class="foot"><div class="in"><button class="btn" id="h">Done</button></div></footer>');$('#h').onclick=ivHome;
   if(pct>=70)confetti();
 }
 function confetti(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;for(let i=0;i<48;i++){const c=document.createElement('div');c.className='conf';c.style.left=Math.random()*100+'vw';c.style.background=['#16a34a','#f97316','#0ea5e9','#8b5cf6','#facc15','#ef4444'][i%6];c.style.animationDelay=Math.random()*.6+'s';c.style.animationDuration=1.4+Math.random()+'s';document.body.appendChild(c);setTimeout(()=>c.remove(),3200)}}
