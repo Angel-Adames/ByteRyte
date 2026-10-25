@@ -272,13 +272,13 @@ test('larger text keeps the home screen inside the viewport', async ({ page }, t
   expect(zoomed).toEqual([]);
 });
 
-test('service worker v19 replaces a v18 cache and tells an open tab to reload', async ({ page }, testInfo) => {
+test('service worker v20 replaces a v19 cache and tells an open tab to reload', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await page.evaluate(async () => {
-    const cache = await caches.open('byteryte-v18');
-    await cache.put(new Request(new URL('legacy-v18.txt', location.href)), new Response('old'));
+    const cache = await caches.open('byteryte-v19');
+    await cache.put(new Request(new URL('legacy-v19.txt', location.href)), new Response('old'));
     const reg = await navigator.serviceWorker.getRegistration();
     if (reg) await reg.unregister();
   });
@@ -286,8 +286,8 @@ test('service worker v19 replaces a v18 cache and tells an open tab to reload', 
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await expect.poll(async () => page.evaluate(async () => {
     const keys = await caches.keys();
-    return { v19: keys.includes('byteryte-v19'), v18: keys.includes('byteryte-v18') };
-  })).toEqual({ v19: true, v18: false });
+    return { v20: keys.includes('byteryte-v20'), v19: keys.includes('byteryte-v19') };
+  })).toEqual({ v20: true, v19: false });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new Event('controllerchange')));
   await expect(page.getByText('A new version of ByteRyte is ready. Reload to use it.')).toBeVisible();

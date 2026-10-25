@@ -1667,3 +1667,229 @@ The four soak logs are `soak nodes 244 243` with heaps 2918240, 2918188, 2909036
   - The 50-lesson soak is four projects and a heap snapshot after a garbage collection. It is not a multi-hour session.
   - Print snippets were executed. Multiple choice and fill answers were not executed.
   - The OpenJFX `Stage` URL returned 503 once during a docs fetch and 200 on the suite run. That host can fail while the page is fine.
+
+# Review cycles 176–200
+
+Batch 4 of the second hundred, and the last batch. Branched from `origin/main` at `86a580e`. Each cycle names what was checked, what was found, what changed, and the test that proved the result. A cycle that found no defect says so.
+
+The Java track and the interview bank were read for Java 21 and Java 25 LTS: why a fact is true, whether the lesson that uses it has already been taught, and whether each question has one correct choice. Phrase locks live in `validate-data.js`. Playwright runs on all four projects.
+
+## Cycle 176 — super() on Java 25
+
+The inheritance fill said `super(...)` must be the first statement of the constructor. On Java 21 an explicit `super(...)` is the first statement. Java 25 allows earlier statements, and those statements cannot use `this` or the object under construction. The answer stays `super`. `this(n)` calls another constructor of the same class. The inheritance sheet now says the same thing.
+
+Verification: `validate-data.js` requires `Java 25 allows earlier statements` and rejects `super(...) must be the first statement`. PASS.
+
+## Cycle 177 — Virtual threads
+
+The threads lesson why said creating threads is expensive and pools reuse them. That is the platform-thread story. A Java 21 virtual thread is cheap: start one per blocking task with `Thread.ofVirtual()` or `Executors.newVirtualThreadPerTaskExecutor()`, and leave those unpooled. They do not speed a pure calculation. Shared data still needs a lock. On Java 21 a `synchronized` block can pin the carrier thread. Java 24 and Java 25 do not pin for `synchronized`.
+
+The interview bank had the same gap. It now asks, in different words, what goes wrong when virtual threads are pooled the way platform threads are. Counted with this cycle.
+
+Verification: `validate-data.js` requires `A Java 21 virtual thread is cheap` and `Pooling Java 21 virtual threads`, and rejects `Creating threads is expensive; pools reuse them.` PASS. The lesson question and the interview question have different text and different choices, so the duplicate scan accepts both.
+
+## Cycle 178 — getFirst and getLast
+
+The lists lesson taught `get(size - 1)` and never named the Java 21 methods. `List` implements `SequencedCollection`, so `getFirst()` is the first element and `getLast()` is the last. An empty list makes `getLast()` throw `NoSuchElementException`.
+
+Added a print: `List.of("a", "b", "c")` prints `a c`.
+
+Verification: `validate-java.js` compiled and ran the snippet with `javac --release 21`. Expected `a c`. PASS, snippets=176. `validate-data.js` requires `getFirst() and getLast()`. PASS. outs=218.
+
+## Cycle 179 — Records and pattern matching
+
+The records lesson print used `instanceof String s`, and the why presented that as this lesson’s new idea. The sheet already says pattern matching was the Modern Java lesson. The snippet is unchanged and still prints 5. The why now says this lesson does not add a new form.
+
+Verification: `validate-data.js` requires `This is the pattern from the Modern Java lesson` and rejects `Pattern matching for instanceof (Java 16+) casts and binds s in one step.` PASS.
+
+## Cycle 180 — == and equals
+
+The interview why for `==` versus `equals` was “A classic opener question.” `==` asks whether two variables point at the same object. `equals` asks whether they count as the same value, and only if the class overrode `equals`. `String` and the wrappers do. A class that leaves `Object.equals` in place still compares identity. The correct choice is unchanged.
+
+Verification: `validate-data.js` requires `== asks whether two variables point at the same object` and rejects `A classic opener question.` PASS.
+
+## Cycle 181 — Compact source files
+
+How a Program Runs said Java 25 adds more on top and the model here is the same one. Java 25 can omit the class and use an instance `void main()`. Java 21 cannot. Both releases run `public static void main(String[] args)`, which is the form this course writes. The correct answer stays “The main method.” No Java 25-only print was added, because the Java validator compiles with `--release 21`.
+
+Verification: `validate-data.js` requires `Java 25 can omit the class and use void main()`. PASS. `validate-java.js` PASS, JDK 21, snippets=176.
+
+## Cycle 182 — HashMap.get worst case
+
+The interview why for average `HashMap.get` said the worst case degrades because Java 8+ uses trees for big buckets, O(log n). Average is one hash jump, O(1), and that stays the answer. Since Java 8 a long bin of Comparable keys can become a tree, and that bucket is then O(log n), only when the bin is long enough and the table is large enough. Keys that are not Comparable stay a linked list, so the worst case is still O(n). The Big-O Tradeoffs sheet now says the same thing.
+
+`String.repeat`’s why now says the method has been in the language since Java 11, so it is ordinary on Java 21 and Java 25. The old line already said Java 11+. That gloss is not a separate bug.
+
+Verification: `validate-data.js` requires `the worst case is still O(n)` and `ordinary on Java 21 and Java 25`, and rejects `Java 8+ uses trees for big buckets: O(log n)`. PASS. interview=140.
+
+## Cycle 183 — The rest of the Java track
+
+Read the foundations, object-oriented, modern, collections, and interview sections for a fact that is stale on Java 21 or Java 25, a why that does not explain the answer, a concept used before its lesson, or a question with two defensible choices.
+
+Left in place: integer division, the `Integer` cache from −128 through 127, pass-by-value, the arrow switch in control flow, `var`, `List.of` immutability, stream laziness, sealed exhaustiveness, the record compact constructor, and `==` on enum constants. Structured concurrency and primitive patterns in `switch` are still preview in Java 25, so they stay out of the lessons. The unnamed `_` was preview in 21. Scoped values are final in 25 and were left out.
+
+Found the seven defects in cycles 176–182, and nothing further in this pass.
+
+Verification: `validate-data.js` PASS, lessons=62, exercises=687, interview=140, fixes=62, outs=218. `validate-ambiguity.js` PASS, arrange-duplicates=1.
+
+## Cycle 184 — Pedagogy locks from 101–175
+
+The phrase locks from cycles 101–175 are still in `validate-data.js` and still pass, including the JavaFX, CSS, and Swift locks from 151–159: `Platform.runLater` after its lesson, the observable list after Lists & Selection, the `var()` fallback, the array copy in place of `map` and `$0`, `show()` versus `showAndWait()`, `-fx-font-weight`, `@layer`, and `1vw` with `svh` and `dvh`.
+
+Found nothing broken.
+
+Verification: `validate-data.js` PASS on this tree.
+
+## Cycle 185 — Hearts across midnight
+
+Repeated the session heart checks and the out-of-hearts day roll.
+
+Found nothing broken.
+
+Verification: `a question on screen refills hearts at midnight`, `a heart comes back while the question stays on screen`, `out of hearts refreshes when the day rolls over`, and `Pacific midnight refills hearts` PASS on all four projects.
+
+## Cycle 186 — Double XP
+
+Repeated the session-boost checks and the stacked purchase.
+
+Found nothing broken.
+
+Verification: `a lesson started during double XP keeps the boost after the timer ends`, `a lesson started after double XP expired is not boosted`, and `buying Double XP twice extends the window by 15 minutes each time` PASS on all four projects.
+
+## Cycle 187 — Names, radios, and the gem list
+
+Repeated the label and shop-list checks.
+
+Found nothing broken.
+
+Verification: `settings and the question name their radio groups`, `avatars, the daily goal, and profile switches have names`, and `the shop lists every gem reward` PASS on all four projects. `validate-static.js` still requires the level-up, quest, and chest lines, and the appearance and answer group names.
+
+## Cycle 188 — Goal gems and a second tab
+
+Repeated the reward and profile checks.
+
+Found nothing broken.
+
+Verification: `a full daily bar pays the goal and the xp quest once`, `lowering the daily goal pays gems that were already earned`, `a lesson keeps its profile when another tab adds one`, and `a second tab keeps a purchase and a goal change from the other tab` PASS on all four projects.
+
+## Cycle 189 — Long names, zoom, keyboard, and motion
+
+Repeated the edge-case checks from cycles 115–119 and 146.
+
+Found nothing broken.
+
+Verification: `long emoji and right-to-left names stay on screen`, `larger text keeps the home screen inside the viewport`, `reduced motion skips confetti`, `the first answer can be entered from the keyboard`, `several profiles can be added and switched by name`, `rapid navigation lands on the last screen`, `a fresh install with no profile reaches onboarding`, and `the local day follows a timezone change` PASS on all four projects.
+
+## Cycle 190 — Level curve, shop, and streak freeze
+
+Repeated the economy checks.
+
+Found nothing broken.
+
+Verification: `levels follow the xp curve and huge xp still renders`, `shop buys every power-up and refuses an empty wallet`, `streak freeze covers one missed day and resets when it cannot`, and `hearts regenerate, refill at midnight, and block lessons at zero` PASS on all four projects.
+
+## Cycle 191 — Service worker v20
+
+This batch edits `data.js` and `interview.js`, so the precache name is `byteryte-v20`. Activate still deletes every other cache. The open-tab test serves v19, then this build. The fresh-install test plants a v19 cache and expects v20.
+
+Found nothing broken. The rename is the ship step.
+
+Verification: `an open tab installs a newer service worker without reloading` shows no toast before `update()`. After it, the toast is visible, `byteryte-v20` is present, and `byteryte-v19` is gone. `service worker v20 replaces a v19 cache and tells an open tab to reload` and `offline reload under /ByteRyte/ uses cache v20` PASS on all four projects. `validate-static.js` PASS.
+
+## Cycle 192 — Every lesson and the interview
+
+Completed every lesson in order and opened the mock interview.
+
+Found nothing broken.
+
+Verification: `every lesson can be completed in order` and `mock interview covers every topic` PASS on all four projects. `validate-java.js` PASS, 176 snippets, JDK 21. `validate-swift.js` PASS, 42 snippets, Swift 6.0.3.
+
+## Cycle 193 — Docs
+
+Fetched every lesson and interview URL.
+
+Verification: `validate-docs.js` PASS, 53 URLs, each HTTP 200 on this run.
+
+## Cycle 194 — Ambiguity
+
+The new questions have one correct choice each. The new `getFirst`/`getLast` print is not a copy of another output snippet.
+
+Found nothing further.
+
+Verification: `validate-ambiguity.js` PASS, arrange-duplicates=1. `validate-data.js` duplicate scan PASS, outs=218.
+
+## Cycle 195 — Bundle size
+
+The new explanations, the virtual-thread questions, and the list print grew the first-load files.
+
+Found the bundle still under the cap.
+
+Verification: `validate-perf.js` PASS, bytes=346717, limit=400000.
+
+## Cycle 196 — Soak
+
+Ran the 50-lesson soak on all four projects inside the suite.
+
+Found nothing broken.
+
+Verification: soak logs are `soak nodes 244 243` with heaps 2922608, 2922604, 2917188, and 2917684, each with 50 lessons.
+
+## Cycle 197 — Slow 4G
+
+Ran the slow-4G lesson on all four projects inside the suite.
+
+Found nothing broken.
+
+Verification: slow 4G times are 2675 ms, 2730 ms, 2781 ms, and 2774 ms.
+
+## Cycle 198 — Axe and contrast
+
+Ran the axe checks and the contrast check on every project.
+
+Found nothing broken.
+
+Verification: `axe home`, `axe lesson`, `axe practice`, `axe interview`, `axe shop`, `axe profile`, `axe settings`, and `body text and lesson labels meet contrast` PASS on all four projects.
+
+## Cycle 199 — Back, import, and a full disk
+
+Repeated the navigation and storage checks that sit next to the profile and backup fixes.
+
+Found nothing broken.
+
+Verification: `browser Back returns in the app and a second Back stays on ByteRyte`, `markup in imported profiles, counts, and a typed name stays text`, `malformed backups are rejected and a hostile file cannot change the prototype`, and `a full disk shows a save error instead of a page error` PASS on all four projects.
+
+## Cycle 200 — What cycles 101–200 add up to
+
+Checked the write-ups above against this suite, and the three earlier closings against their own logs. The closing count is below.
+
+## Final verification
+
+`npm test` from `tests/` exited 0. Playwright reported 2.6m. This run is the one that counts. Docs returned 200 for all 53 URLs on the first fetch.
+
+- `validate-data.js` PASS, lessons=62, exercises=687, interview=140, fixes=62, outs=218
+- `validate-static.js` PASS
+- `validate-docs.js` PASS, 53 URLs
+- `validate-java.js` PASS, 176 snippets, JDK 21
+- `validate-swift.js` PASS, 42 snippets, Swift 6.0.3
+- `validate-ambiguity.js` PASS, arrange-duplicates=1
+- `validate-perf.js` PASS, bytes=346717, limit=400000
+- Playwright PASS, 296 passed, 0 skipped
+
+The four soak logs are `soak nodes 244 243` with heaps 2922608, 2922604, 2917188, and 2917684, each with 50 lessons. The four slow-4G times are 2675 ms, 2730 ms, 2781 ms, and 2774 ms.
+
+## Closing summary
+
+- Total cycles completed: 200. This batch is 176–200.
+- Bugs found and fixed in this batch: 7. Counted once each: `super(...)` described as required first, which is false on Java 25 (176); the threads why covering only expensive platform threads (177, including the interview pooling question); lists never naming Java 21 `getFirst()` and `getLast()` (178); the records why teaching pattern matching as a new form (179); the interview `==` / `equals` why that only said “A classic opener question.” (180); How a Program Runs omitting compact source files and instance `void main()` (181); the interview `HashMap.get` why treating a tree bin as the whole worst case (182).
+- Not in that 7: the `String.repeat` gloss that the method has been ordinary since Java 11 (182), and the cache rename from v19 to v20 (191).
+- Cumulative bugs across cycles 1–200: 99. Cycles 1–175 counted 92.
+- Cycles 101–200, this round only: 40 bugs. Cycles 101–125 counted 16, cycles 126–150 counted 8, cycles 151–175 counted 9, and this batch counts 7. The first hundred counted 59, which is outside that 40.
+- Final test counts for this run: `npm test` exited 0. Validators: lessons 62, exercises 687, interview 140, fixes 62, outs 218, docs 53, Java snippets 176 (JDK 21), Swift snippets 42 (Swift 6.0.3), arrange-duplicates 1, bytes 346717 of 400000. Playwright 296 passed, 0 skipped, in 2.6m. Soak on all four projects: 244 nodes then 243, heaps 2917188–2922608, 50 lessons. Slow 4G on all four projects: 2675–2781 ms, under the 8 second guard.
+- Earlier suites in this round, each green on the commit that landed: cycles 101–125, Playwright 264 passed, bytes 339293, cache `byteryte-v17`; cycles 126–150, Playwright 292 passed, bytes 340002, cache `byteryte-v18`; cycles 151–175, Playwright 296 passed, bytes 343018, cache `byteryte-v19`. This run is cache `byteryte-v20`. Playwright stayed at 296 because this batch added lesson and interview items, which the validators execute, and renamed the cache tests.
+- Known limitations / not testable here:
+  - No physical phone, no spoken VoiceOver, and no installed home-screen icon. The names Playwright reads are the accessible names. Offline is a Playwright context set to offline. CSS zoom 2 is not pinch zoom.
+  - The two service-worker scripts were fulfilled by the test. They were not two deploys of GitHub Pages. The tab did not reload between them.
+  - The slow-4G times are Chromium emulation against the local uncompressed server. They are not a Lighthouse run and not the live GitHub Pages site.
+  - The 50-lesson soak is four projects and a heap snapshot after a garbage collection. It is not a multi-hour session.
+  - Print snippets were executed. Multiple choice and fill answers were not executed.
+  - This docs fetch returned 200 for all 53 URLs. The OpenJFX `Stage` URL returned 503 once during cycles 151–175 and 200 on that batch’s suite. That host can fail while the page is fine.
