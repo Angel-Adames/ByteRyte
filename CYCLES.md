@@ -749,3 +749,233 @@ The 6 skips are `fifty lessons in a row` on the three projects other than `desk-
 - The 50-lesson soak is one desk project, then a heap snapshot. It is not a multi-hour session and not a native memory trace.
 - Tips, cheat sheets, and the interview bank were read for wrong or conflicting rules. Every Java and Swift print snippet was executed. Not every one of the 683 explanations was rewritten; the ones that were wrong are the cycles above.
 - Positional migration covers the keys that map existed for. Lessons added later have no old key.
+
+# Review cycles 76–100
+
+Batch 4. The branch starts from `cursor/cycles-51-75-3770` (the batch 3 work), not from `main`. Each cycle names what was checked, what was found, what changed, and the test that proved it. A cycle that found no defect says so.
+
+The per-exercise explanations are the `why` on each question. Tips, sheets, and the interview bank were already read in cycles 51–75. This batch read the explanations. A scanner listed every explanation that names a different choice and does not name the keyed choice. Those hits were read one by one.
+
+## Cycle 76 — Empty ListView selection in the lesson
+
+Checked `fx.lists`. The sheet and the explanation say `getSelectedItem()` returns null when nothing is selected. The choices are `""`, `0`, `null`, and `Optional.empty()`. The keyed index was 1, which is `0`.
+
+Fix: the keyed choice is `null`.
+
+Verification: `validate-data.js` requires that question’s keyed choice to be `null`.
+
+## Cycle 77 — The same ListView question in the interview
+
+Checked the JavaFX interview item `ListView.getSelectionModel().getSelectedItem() with nothing selected`. The explanation says to check for null. The choices are `""`, `Optional.empty()`, `null`, and `0`. The keyed index was 1, which is `Optional.empty()`.
+
+Fix: the keyed choice is `null`.
+
+Verification: `validate-data.js` requires that question’s keyed choice to be `null`.
+
+## Cycle 78 — The button handler in the interview
+
+Checked `A button click is handled with…`. The explanation says `setOnAction`. The choices are `setOnAction`, `setOnClick`, `onClick`, and `addMouse`. The keyed index was 1, which is `setOnClick`. The lesson fill and the JavaFX fix exercise already key `setOnAction`.
+
+Fix: the keyed choice is `setOnAction`.
+
+Verification: `validate-data.js` requires that question’s keyed choice to be `setOnAction`.
+
+## Cycle 79 — The name bound in a Swift catch
+
+Checked `Inside catch, the thrown value is available as…`. The sheet and the explanation say a catch with no pattern binds `error`. The choices are `e`, `exception`, `error`, and `err`. The keyed index was 1, which is `exception`.
+
+Fix: the keyed choice is `error`.
+
+Verification: `validate-data.js` requires that question’s keyed choice to be `error`.
+
+## Cycle 80 — What an interface can hold
+
+Checked `Which can hold instance fields?`. The keyed choice, abstract classes, is right. The explanation said interfaces may only have constants. That is too strong: an interface can declare methods, including private ones, which cycle 60 already says. It still cannot hold instance fields. Its fields are public static final.
+
+Fix: the explanation says that, and that an abstract class can hold ordinary fields.
+
+Verification: `validate-data.js` rejects `Interfaces may only have constants` and requires `An interface cannot hold instance fields`.
+
+## Cycle 81 — System.out::println
+
+Checked the fill `list.forEach(System.out::___)`. The keyed blank `println` is right. The explanation called it `Class::method`. `System.out::println` is a bound instance method reference. It stands in for `x -> System.out.println(x)`.
+
+Fix: the explanation says that.
+
+Verification: `validate-data.js` rejects `Class::method is shorthand` and requires `bound instance method reference`.
+
+## Cycle 82 — An enum is not two records
+
+Checked the sealed fix that rejects `enum Shape { Circle, Square }`. The keyed declaration, `sealed interface Shape permits Circle {}`, is right. The explanation said an enum would erase the fields the records were holding. An enum of those names is a list of names. It is not two records that keep different fields.
+
+Fix: the explanation says that.
+
+Verification: `validate-data.js` rejects `An enum would erase the fields` and requires `not two records that keep different fields`.
+
+## Cycle 83 — Enum == and null
+
+Checked `Comparing two enum constants with ==`. The safe choice is right, and `==` does not throw if either side is null. The choice said `null-safe on the left`, which describes one side only.
+
+Fix: the choice and the explanation say `==` does not throw if either side is null. The keyed index stays 1.
+
+Verification: `validate-data.js` rejects `null-safe on the left` and requires that question’s full choice text.
+
+## Cycle 84 — The rest of the explanation scan
+
+Checked the scanner again after cycles 76–83. It reports an explanation that contains some other choice and does not contain the keyed choice. Fourteen hits remain.
+
+They are explanations that mention a wrong choice on purpose (`O(n²)`, `Stack`, `static`, `mobile`, `spacing`), or a shorter word inside the real sentence (`mail` inside the mail example, `body` and `close` inside the try-with-resources sentence, `hello` inside the text-block sentence, `struct` and `enum` beside `protocol`). None of them keys the wrong choice.
+
+Found no further wrong key. No code change.
+
+Verification: `validate-data.js` PASS, lessons=62, exercises=683, interview=139, fixes=62, outs=217.
+
+## Cycle 85 — Numbers that were inserted as HTML
+
+Checked every place a saved profile is drawn. Names and avatars already go through `esc()` (cycle 6). These values were concatenated into HTML as they were stored: today’s XP, the week chart, the calendar title, a weak-spot count, the weekly lesson and answer counts, and a daily-quest count. A backup could store a string there. `plural()` and the chart title would then write that string into the page.
+
+Fix: `sanitize()` rounds `xpLog`, `misses`, `saved`, and `badges` into finite numbers, and rounds each `dlog` day to `l`, `a`, and `c`. Quest progress is rounded the same way. A value that is not a number becomes 0. Review boxes and dues are numbers. Gate flags are booleans. `last`, `heartDay`, and `goalDay` must be `YYYY-MM-DD` or they are cleared. An unknown track becomes `java`.
+
+Verification: `markup in imported profiles, counts, and a typed name stays text` PASS on phone-light and desk-dark in the slice before the combined run. The imported XP, miss count, lesson count, and quest count are 0. The page has no `img`, no `svg`, and no `onerror` or `onload` attribute.
+
+## Cycle 86 — Profile ids and a name typed in the editor
+
+Checked the switch button. `data-id` was the stored profile id, unescaped. A `"` in the id closed the attribute. Lesson and saved keys were also written straight into `data-k`. Those keys only render when they match a real lesson, so the live ones are safe. The id is not.
+
+Fix: `esc()` on the switch id and on every `data-k`. The editor still stores the typed name, and the profile heading renders it as text.
+
+Verification: the same test. The other profile’s id is `bob"><svg onload=self.__x=1>`. `data-id` reads back as that string, and the document HTML does not contain a raw `<svg` tag. Switching lands on that profile. Saving the name `<b>Hi</b>` shows those characters in the heading and does not create a `b` element.
+
+## Cycle 87 — Theme, sound, and text size from a backup
+
+Checked settings loaded from storage. `theme` was used only in comparisons, so a markup string did not render, but it was also not one of `system`, `light`, or `dark`.
+
+Fix: `applyTheme()` keeps only those three themes and stores sound and larger text as booleans.
+
+Verification: the same test opens Settings after a backup whose theme is a markup string. The System radio is checked. No handler runs.
+
+## Cycle 88 — Content Security Policy
+
+Checked `index.html`. Two inline scripts registered the service worker and replaced the boot message after 8 seconds. `script-src 'self'` cannot allow those and still block injected handlers. `frame-ancestors` does nothing in a meta tag. Style attributes are used throughout the page, so a style policy has to allow them. Export builds a `blob:` URL on a link. That navigation is not a script load.
+
+Fix: both scripts moved to `boot.js`. The meta policy is `default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; connect-src 'self'; worker-src 'self'; manifest-src 'self'; base-uri 'self'; object-src 'none'; frame-src 'none'; form-action 'none'`. There is no `frame-ancestors` and no `unsafe-inline` on scripts.
+
+Verification: `validate-static.js` requires that policy, rejects an inline script, and requires `boot.js`. `first load shows the daily goal quickly and requests the scripts` requires `boot.js` in the resource list. The markup test reads the policy back from the page. Daily goal still appears, so the external scripts ran.
+
+## Cycle 89 — Export and the offline copy of boot.js
+
+Checked that the policy did not block the backup download, and that a reload with no network still has `boot.js`.
+
+Found nothing broken. The export test still receives the JSON file. The precache list includes `boot.js`.
+
+Verification: `export and import round-trip, including the same file twice` is in the combined run. `offline reload under /ByteRyte/ uses cache v16` checks the cache name and that a cached URL ends in `/boot.js`, then reloads offline and still shows Daily goal. PASS on phone-light and desk-dark in the slice.
+
+## Cycle 90 — Gzip under /ByteRyte/
+
+Checked a local server on port 8881. It serves the same `/tmp/byteryte-pages` tree the suite uses, with `/ByteRyte/` mapped to this repo, and it gzips HTML, JS, CSS, SVG, and the manifest when the request asks for gzip. This is not `https://angel-adames.github.io/ByteRyte/`. That site was not requested.
+
+Fix: `tests/gzip-server.js` starts with the other servers.
+
+Verification: `a gzip response under /ByteRyte/ still shows the daily goal`. A Node `http.get` with `Accept-Encoding: gzip` sees `Content-Encoding: gzip` on `index.html` and on `app.js`, gunzips both, and finds the title and the storage key. Playwright then opens `http://127.0.0.1:8881/ByteRyte/` and the daily goal is visible. PASS on phone-light and desk-dark in the slice. The combined run repeats it on all four projects.
+
+## Cycle 91 — Fifty lessons on every project
+
+Checked the soak that cycle 70 ran only on `desk-light`. The skip is gone. Each project unlocks every lesson, finishes 50 lessons across Java, HTML & CSS, JavaFX, and Swift, and compares the Java home node count before and after. Toasts must drain. The heap is read after a garbage collection. The limit is still a 40 MB heap and a node-count change under 80.
+
+Verification: `fifty lessons in a row leave the home screen the same size` in the combined run, on all four projects. The log line is in the final verification.
+
+## Cycle 92 — Slow 4G on every project
+
+Checked the throttle that cycle 55 ran only on `phone-light`. The skip is gone. Download is 1.6 Mb/s, upload is 750 Kb/s, latency is 150 ms, and the CPU is slowed to 4×. The clock starts before `boot` and stops when Daily goal is visible. The guard is still under 8 seconds. The server is the local uncompressed one, not the gzip stand-in and not GitHub Pages.
+
+Verification: `slow 4G and a 4x CPU still reach the daily goal` in the combined run, on all four projects. The log line is in the final verification.
+
+## Cycle 93 — The Error sentence from cycle 61
+
+Checked cycle 61. The sheet was changed so it says `Error` is unchecked, and the only check was that `validate-data.js` still parsed the file.
+
+Fix: the validator now requires the words `Error is also unchecked`.
+
+Verification: `validate-data.js` PASS.
+
+## Cycle 94 — The safe-area rules from cycle 44
+
+Checked cycle 44. The insets were already in the CSS, and no test locked them. A device inset still cannot be measured here.
+
+Fix: `validate-static.js` requires `env(safe-area-inset-top)` and `env(safe-area-inset-bottom)` in `style.css`.
+
+Verification: `validate-static.js` PASS. No physical inset was measured.
+
+## Cycle 95 — Cycles 1–75 on this branch
+
+Checked the suite that locked those cycles: migration, the two-tab revision, the hostile prototype, hearts, the shop, import, and the screens. This branch contains that code. The new sanitize and the policy have to leave those paths working.
+
+Found nothing that those tests rejected in the slice (edges, smoke, and offline on phone-light and desk-dark, 46 passed). The combined run is the full check.
+
+Verification: the combined `npm test` below.
+
+## Cycle 96 — Service worker cache v16
+
+Checked the precache after `boot.js` and the script edits.
+
+Fix: `sw.js` uses `byteryte-v16` and lists `boot.js`.
+
+Verification: `validate-static.js` PASS. The offline spec in cycle 89 PASS on phone-light and desk-dark.
+
+## Cycle 97 — Print snippets after the explanation edits
+
+Checked that the explanation and index edits did not change a keyed print answer. The four index edits are multiple choice, not print snippets.
+
+Verification: `validate-java.js` and `validate-swift.js` in the combined run.
+
+## Cycle 98 — Ambiguous choices
+
+Checked the validator that rejects a repeated correct line. The new keyed choices were already one of the four options. None was duplicated.
+
+Found nothing wrong.
+
+Verification: `validate-ambiguity.js` PASS, arrange-duplicates=1.
+
+## Cycle 99 — First-load size
+
+Checked the byte budget with `boot.js` and the policy meta included. The cap is still 400000.
+
+Found 336412 bytes. That is inside the cap.
+
+Verification: `validate-perf.js` PASS, bytes=336412, limit=400000.
+
+## Cycle 100 — What the hundred cycles add up to
+
+Checked the write-ups from cycles 1–99 and the suite this batch runs. The closing count is below. A defect is a wrong behavior or a wrong lesson sentence that a cycle changed in the app or the curriculum. Cycle 37’s four same-turn doubles are one missing lock. A cache rename, a test-only locator, and the Java harness’s directory split are not in that count.
+
+## Final verification
+
+`npm test` from `tests/` exited 0. Playwright reported 2.3m.
+
+- `validate-data.js` PASS, lessons=62, exercises=683, interview=139, fixes=62, outs=217
+- `validate-static.js` PASS
+- `validate-docs.js` PASS, 53 URLs
+- `validate-java.js` PASS, 175 snippets, JDK 21
+- `validate-swift.js` PASS, 42 snippets, Swift 6.0.3
+- `validate-ambiguity.js` PASS, arrange-duplicates=1
+- `validate-perf.js` PASS, bytes=336412, limit=400000
+- Playwright PASS, 208 passed, 0 skipped
+
+An earlier slice of edges, gzip, smoke, and offline on phone-light and desk-dark passed 46 tests before this run. This run is the one that counts.
+
+The four soak logs are `soak nodes 244 243` with heaps 2899164, 2899288, 2903960, and 2904136, each with 50 lessons. The four slow-4G times are 2647 ms, 2661 ms, 2681 ms, and 2688 ms.
+
+## Closing summary
+
+- Total cycles completed: 100.
+- Total bugs found and fixed: 59. Counted once each: the two crashing exercises (1); huge XP, name and avatar markup, and the gem header (6); stale 50/50 keys and the 1–6 shortcut sentence (10); the second Check click (11); a replay counting as another lesson (13); importing the same file twice (17); the nav icon inside the button name (21); Back leaving the page, and a second Back leaving it again (26, 27); no standalone flag (28); a suspended sound (29); an array accepted as a backup (31); yesterday across the fall-back (32); a full disk becoming a page error (35); a same-turn second purchase (36); same-turn doubles on add profile, Check, opening a lesson, and sound, counted as one missing lock (37); the identical JavaFX bug lines (38); the calendar across the fall-back (40); leaving a lesson did not pop its history entry (41); guide and recap had no history entry (42); a backup setting the profile prototype (43); a second Shop entry (45); a fast second freeze after the button re-rendered (51); the wrong or over-wide sentences in cycles 56–66 (eleven sentences); four repeated interview questions (67); the shared avatar name (69); a second tab replacing a purchase (71); an import dropped by the revision check (72); the goal saved before Save (73); a v1 blob skipping migration (74); the four wrong keys (76–79); the four wrong or one-sided explanations (80–83); numeric profile fields drawn as HTML (85); an unescaped profile id (86); a theme outside system, light, and dark (87); and inline scripts that blocked `script-src 'self'` (88).
+- Not in that 59: the Java harness compiling every snippet in one directory (2), the seed and locator fixes (12, 23, 25, 53), separate origins for the four projects (54), and the cache renames to v13, v14, v15, and v16 (5, 46, 75, 96).
+- Final test counts: `npm test` exited 0. Validators: lessons 62, exercises 683, interview 139, fixes 62, outs 217, docs 53, Java snippets 175 (JDK 21), Swift snippets 42 (Swift 6.0.3), arrange-duplicates 1, bytes 336412 of 400000. Playwright 208 passed, 0 skipped, in 2.3m. Soak on all four projects: 244 nodes then 243, heaps 2899164–2904136, 50 lessons. Slow 4G on all four projects: 2647–2688 ms, under the 8 second guard.
+- Known limitations / not testable here:
+  - No physical phone, no spoken audio, and no installed home-screen icon. Offline is a Playwright context set to offline. Standalone is the mocked media query. The safe-area CSS is locked; a device inset was not measured.
+  - The slow-4G times are Chromium emulation against the local uncompressed server. They are not a Lighthouse run and not the live GitHub Pages site. The gzip check is a local server on port 8881 with the `/ByteRyte/` prefix.
+  - The 50-lesson soak is four projects and a heap snapshot after a garbage collection. It is not a multi-hour session and not a native memory trace.
+  - Print snippets were executed. Multiple choice and fill answers were not executed; the wrong keys in this batch were found by reading the explanation against the keyed choice.
+  - Swift validation skips, and says so, if the Swift toolchain is absent.
+  - Lessons added after the positional map have no old key.
+  - `style-src` still allows inline style attributes, because the page sets width, height, and color that way. Script sources do not allow inline scripts.

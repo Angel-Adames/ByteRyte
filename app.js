@@ -37,6 +37,40 @@ function sanitize(p){
   p.onboarded=!!p.onboarded;p.unlockAll=!!p.unlockAll;
   if(!p.stats||typeof p.stats!=='object'||Array.isArray(p.stats))p.stats={};
   ['answered','correct','perfect','lessons','interviews','bestIv','reviews','challenges','bought','bestChal','saved'].forEach(k=>{if(p.stats[k]!=null)p.stats[k]=Math.round(finite(p.stats[k],0,0,1e9))});
+  ['xpLog','misses','saved','badges'].forEach(map=>{
+    if(!p[map]||typeof p[map]!=='object'||Array.isArray(p[map])){p[map]={};return}
+    Object.keys(p[map]).forEach(k=>{
+      if(k==='__proto__'||k==='constructor'||k==='prototype'){delete p[map][k];return}
+      p[map][k]=Math.round(finite(p[map][k],0,0,map==='xpLog'||map==='misses'?1e9:1e15));
+    });
+  });
+  if(!p.dlog||typeof p.dlog!=='object'||Array.isArray(p.dlog))p.dlog={};
+  Object.keys(p.dlog).forEach(k=>{
+    const x=p.dlog[k];
+    if(!x||typeof x!=='object'||Array.isArray(x)){p.dlog[k]={l:0,a:0,c:0};return}
+    ['l','a','c'].forEach(f=>{x[f]=Math.round(finite(x[f],0,0,1e9))});
+  });
+  if(!p.review||typeof p.review!=='object'||Array.isArray(p.review))p.review={};
+  Object.keys(p.review).forEach(k=>{
+    const x=p.review[k];
+    if(!x||typeof x!=='object'||Array.isArray(x)){delete p.review[k];return}
+    x.due=finite(x.due,0,0,null);x.box=Math.round(finite(x.box,0,0,8));
+  });
+  if(!p.gates||typeof p.gates!=='object'||Array.isArray(p.gates))p.gates={};
+  Object.keys(p.gates).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype'){delete p.gates[k];return}p.gates[k]=!!p.gates[k]});
+  const questIds={xp:1,lessons:1,correct:1,perfect:1,chal:1,review:1,iv:1};
+  if(p.qd&&typeof p.qd==='object'&&!Array.isArray(p.qd)&&typeof p.qd.day==='string'&&Array.isArray(p.qd.ids)&&p.qd.ids.length===3&&p.qd.ids[0]==='xp'&&p.qd.ids.every(id=>questIds[id])){
+    p.qd.chest=!!p.qd.chest;
+    if(!p.qd.p||typeof p.qd.p!=='object'||Array.isArray(p.qd.p))p.qd.p={};
+    Object.keys(p.qd.p).forEach(k=>{p.qd.p[k]=Math.round(finite(p.qd.p[k],0,0,1e9))});
+    if(!p.qd.claimed||typeof p.qd.claimed!=='object'||Array.isArray(p.qd.claimed))p.qd.claimed={};
+    Object.keys(p.qd.claimed).forEach(k=>{if(!questIds[k])delete p.qd.claimed[k];else p.qd.claimed[k]=1});
+  }else delete p.qd;
+  if(typeof TRACKS==='undefined'||!TRACKS.some(t=>t.id===p.track))p.track='java';
+  const dayOk=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s);
+  if(p.last!=null&&!dayOk(p.last))p.last=null;
+  if(p.heartDay!=null&&!dayOk(p.heartDay))p.heartDay=null;
+  if(p.goalDay!=null&&!dayOk(p.goalDay))p.goalDay=null;
   return p}
 function ownCopy(target,raw){if(!raw||typeof raw!=='object'||Array.isArray(raw))return target;Object.keys(raw).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;target[k]=raw[k]});return target}
 function hydrate(){
@@ -94,7 +128,7 @@ function daily(){ // refill hearts at midnight, streak freeze handling
 // ---------- theme / sound / toast ----------
 const mq=matchMedia('(prefers-color-scheme: dark)');
 const standalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}};
-const applyTheme=()=>{const d=G.theme==='dark'||(G.theme==='system'&&mq.matches);document.documentElement.dataset.theme=d?'dark':'light';$('meta[name=theme-color]').content=d?'#0b1220':'#16a34a';document.documentElement.toggleAttribute('data-big',!!G.big);document.documentElement.toggleAttribute('data-standalone',standalone())};
+const applyTheme=()=>{if(!['system','light','dark'].includes(G.theme))G.theme='system';G.sound=!!G.sound;G.big=!!G.big;const d=G.theme==='dark'||(G.theme==='system'&&mq.matches);document.documentElement.dataset.theme=d?'dark':'light';$('meta[name=theme-color]').content=d?'#0b1220':'#16a34a';document.documentElement.toggleAttribute('data-big',!!G.big);document.documentElement.toggleAttribute('data-standalone',standalone())};
 mq.addEventListener?.('change',applyTheme);applyTheme();
 let AC;const tone=(f,d=.12,t=0,type='sine')=>{if(!G.sound)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(.0001,AC.currentTime+t);g.gain.exponentialRampToValueAtTime(.15,AC.currentTime+t+.02);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+t+d);o.connect(g).connect(AC.destination);o.start(AC.currentTime+t);o.stop(AC.currentTime+t+d+.05)}catch(e){}};
 const sfx={ok:()=>{tone(660);tone(880,.15,.09)},no:()=>{tone(220,.2,0,'triangle')},win:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.18,i*.11)),coin:()=>{tone(988,.08);tone(1319,.15,.07)}};
@@ -246,7 +280,7 @@ function home(){
     h+=`<div class="unit" style="--c:${t.color}"><div>${esc(u.name)}<small>${ud}/${u.lessons.length} lessons complete</small></div><div class="uright"><button class="guide" data-u="${ui}" aria-label="📖 Guide, ${esc(u.name)}">📖 Guide</button><div class="ring" style="--p:${ud/u.lessons.length*100}" aria-hidden="true"></div></div></div><div class="path" style="--c:${t.color}">`;
     u.lessons.forEach((l,li)=>{const i=ls.findIndex(x=>x.ui===ui&&x.li===li),k=ls[i].key,open=!locked&&(S.unlockAll||i<=firstOpen||firstOpen<0||S.done[k]),isCur=open&&!S.done[k]&&i===firstOpen;
       const off=[0,48,68,48,0,-48,-68,-48][i%8];
-      h+=`<div class="nodewrap ${isCur?'hascur':''}" style="--x:${off}px">${isCur?'<div class="startbub">START</div>':''}<button class="node ${open?'':'lock'} ${S.done[k]?'done':''} ${isCur?'cur':''}" style="--c:${t.color}" data-k="${k}" ${open?'':'disabled'} aria-label="${esc(l.name)}${S.done[k]?' (complete)':open?'':' (locked)'}">${S.done[k]?'★':open?t.icon:'🔒'}</button><div class="nlab">${esc(l.name)}</div></div>`});
+      h+=`<div class="nodewrap ${isCur?'hascur':''}" style="--x:${off}px">${isCur?'<div class="startbub">START</div>':''}<button class="node ${open?'':'lock'} ${S.done[k]?'done':''} ${isCur?'cur':''}" style="--c:${t.color}" data-k="${esc(k)}" ${open?'':'disabled'} aria-label="${esc(l.name)}${S.done[k]?' (complete)':open?'':' (locked)'}">${S.done[k]?'★':open?t.icon:'🔒'}</button><div class="nlab">${esc(l.name)}</div></div>`});
     h+=`</div>`});
   if(t.id==='java')h+=`<div class="branchbox">🌿 <b>HTML &amp; CSS</b> ${trackOpen(T('css'))?'is open.':'opens after types through arrays.'} <b>JavaFX</b> (OpenJFX 21+, not part of the JDK) ${trackOpen(T('javafx'))?'is open.':'opens after object-oriented Java.'} Switch tabs above once a branch is open.</div>`;
   h+=`<p class="note">Java print answers were run on JDK 21. Swift print answers were run on Swift 6.0.3. Concepts checked against Oracle, OpenJFX, MDN, and Swift.org. Gems stay in the app.</p>`;
@@ -268,8 +302,8 @@ function practice(){cur='practice';daily();const dn=due().length;
   <button class="pcard" id="chal"><span class="pic">⏱️</span><span><b>Speed challenge</b><small>60 seconds, as many as you can. Best: ${S.stats.bestChal||0}</small></span></button>
   <button class="pcard" id="svd" ${savedKeys().length?'':'disabled'}><span class="pic">★</span><span><b>Saved questions</b><small>${savedKeys().length?`${plural(savedKeys().length,'saved question')} · no hearts needed`:'None yet. After you answer, tap Save question to keep it here.'}</small></span></button>
   <h2 class="h2">Weak spots</h2>`;
-  h+=weak.length?weak.map(([k,n])=>{const f=findLesson(k);return `<button class="pcard weak" data-k="${k}"><span class="pic">${f.t.icon}</span><span><b>${esc(f.l.name)}</b><small>${plural(n,'miss','misses')} · ${f.t.name}</small></span></button>`}).join(''):'<div class="empty"><span aria-hidden="true">🌱</span><p>No weak spots yet. Miss a question and that lesson will show up here.</p></div>';
-  if(savedKeys().length)h+=`<h2 class="h2">Saved · ${savedKeys().length}</h2><ul class="svlist">${savedKeys().map(k=>{const e=exByKey(k),src=k.startsWith('iv-')?'Interview · '+e.tag:lessonOf(k.split('~')[0])?.name;return `<li><span><b>${esc((e.q||(e.t==='out'?'What does this print?':'Question')).slice(0,90))}</b><small>${esc(src||'')}</small></span><button class="link unsv" data-k="${k}" aria-label="Remove from saved">Remove</button></li>`}).join('')}</ul>`;
+  h+=weak.length?weak.map(([k,n])=>{const f=findLesson(k);return `<button class="pcard weak" data-k="${esc(k)}"><span class="pic">${f.t.icon}</span><span><b>${esc(f.l.name)}</b><small>${plural(n,'miss','misses')} · ${f.t.name}</small></span></button>`}).join(''):'<div class="empty"><span aria-hidden="true">🌱</span><p>No weak spots yet. Miss a question and that lesson will show up here.</p></div>';
+  if(savedKeys().length)h+=`<h2 class="h2">Saved · ${savedKeys().length}</h2><ul class="svlist">${savedKeys().map(k=>{const e=exByKey(k),src=k.startsWith('iv-')?'Interview · '+e.tag:lessonOf(k.split('~')[0])?.name;return `<li><span><b>${esc((e.q||(e.t==='out'?'What does this print?':'Question')).slice(0,90))}</b><small>${esc(src||'')}</small></span><button class="link unsv" data-k="${esc(k)}" aria-label="Remove from saved">Remove</button></li>`}).join('')}</ul>`;
   shell(h);
   $('#svd').onclick=()=>{if(!once($('#svd')))return;const ks=savedKeys();if(ks.length)start(shuffle(ks).map(k=>({e:exByKey(k),k})),{name:'Saved questions',mode:'saved'})};
   $$('.unsv').forEach(b=>b.onclick=()=>{if(!once(b))return;delete S.saved[b.dataset.k];save();practice()});
@@ -316,7 +350,7 @@ function profile(){cur='profile';daily();
   <div class="league"><b>Weekly league: you vs. last week</b><div class="row"><span>This week</span><b>${tw} XP</b></div><div class="row"><span>Last week</span><b>${lw} XP</b></div><div class="pill ${tw>=lw?'up':''}">${tw>lw?'📈 Promoted pace! Beat last week by '+(tw-lw)+' XP':tw===lw?'Tied with last week':'📉 '+(lw-tw)+' XP to beat last week'}</div></div>
   <h2 class="h2">Streak calendar</h2><div class="cal" role="img" aria-label="Activity calendar, last 5 weeks">${['S','M','T','W','T','F','S'].map(x=>`<span>${x}</span>`).join('')}${cal.map(d=>{if(!d)return '<i class="fut"></i>';const v=S.xpLog[d]||0;return `<i title="${d}: ${v} XP" class="l${v?v>=S.goal?3:v>=S.goal/2?2:1:0} ${d===today()?'today':''}"></i>`}).join('')}</div><div class="legend">Less <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i> More · goal met = darkest</div>
   <h2 class="h2">Achievements · ${Object.keys(S.badges).length}/${BADGES.length}</h2><div class="badges" role="list">${BADGES.map(([id,ic,n,d,,pr])=>{const got=S.badges[id],pv=!got&&pr?pr():null;return `<div class="badge ${got?'got':''}" role="listitem" aria-label="${esc(n)}: ${esc(d)}. ${got?'Unlocked':'Locked'+(pv?`, ${Math.min(pv[0],pv[1])} of ${pv[1]}`:'')}"><span aria-hidden="true">${got?ic:'🔒'}</span><b>${n}</b><small>${d}</small>${got?`<small class="bdate">✓ ${got>1e12?new Date(got).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'Unlocked'}</small>`:pv?`<div class="bprog" aria-hidden="true"><i style="width:${Math.min(100,pv[0]/pv[1]*100)}%"></i></div><small class="bdate">${Math.min(pv[0],pv[1])}/${pv[1]}</small>`:''}</div>`}).join('')}</div>
-  <h2 class="h2">Profiles on this device</h2>${others.map(p=>`<div class="sitem"><span class="pic">${esc(p.avatar)}</span><div><b>${esc(p.name)}</b><small>${p.xp} XP · 🔥 ${p.streak}</small></div><button class="btn sm alt sw" data-id="${p.id}">Switch</button></div>`).join('')}
+  <h2 class="h2">Profiles on this device</h2>${others.map(p=>`<div class="sitem"><span class="pic">${esc(p.avatar)}</span><div><b>${esc(p.name)}</b><small>${p.xp} XP · 🔥 ${p.streak}</small></div><button class="btn sm alt sw" data-id="${esc(p.id)}">Switch</button></div>`).join('')}
   <button class="btn alt" id="addp">＋ Add profile</button>`);
   $('#edit').onclick=$('#edit2').onclick=()=>{if(!once($('#edit2')))return;editProfile(false)};$('#recap').onclick=()=>{if(!once($('#recap')))return;recap()};
   $('#addp').onclick=()=>{if(addLock)return;addLock=true;queueMicrotask(()=>{addLock=false});const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p;save();onboard()};

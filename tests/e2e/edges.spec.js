@@ -262,4 +262,78 @@ test('first load shows the daily goal quickly and requests the scripts', async (
   const names = await page.evaluate(() => performance.getEntriesByType('resource').map(r => r.name));
   expect(names.some(n => n.includes('data.js'))).toBe(true);
   expect(names.some(n => n.includes('app.js'))).toBe(true);
+  expect(names.some(n => n.includes('boot.js'))).toBe(true);
+});
+
+test('markup in imported profiles, counts, and a typed name stays text', async ({ page }, testInfo) => {
+  const z = new Date();
+  const today = z.getFullYear() + '-' + String(z.getMonth() + 1).padStart(2, '0') + '-' + String(z.getDate()).padStart(2, '0');
+  const name = '<svg onload=self.__x=1>';
+  const avatar = '<svg onload=self.__xss=1>';
+  const otherId = 'bob"><svg onload=self.__x=1>';
+  const mark = '"><svg onload=self.__x=1>';
+  const blob = {
+    active: 'ada',
+    rev: 1,
+    list: {
+      ada: {
+        id: 'ada', name, avatar, onboarded: true, xp: 12, hearts: 5, heartDay: today, goal: 30,
+        curriculum: 2, track: 'java', gems: 40,
+        xpLog: { [today]: mark },
+        misses: { 'java.types': mark },
+        dlog: { [today]: { l: mark, a: mark, c: 1 } },
+        saved: { 'java.types~0': 1 },
+        qd: { day: today, ids: ['xp', 'lessons', 'correct'], p: { lessons: mark }, claimed: {}, chest: false },
+        badges: { first: mark },
+      },
+      [otherId]: { id: otherId, name: 'Bob' + name, avatar: '🐼', onboarded: true, xp: 4, curriculum: 2, goal: 30, hearts: 5, heartDay: today },
+    },
+  };
+  await boot(page, testInfo, {
+    raw: JSON.stringify(blob),
+    settings: { theme: mark, sound: false, big: false },
+  });
+  await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
+  const clean = await page.evaluate((day) => {
+    const s = window.__BR.S;
+    return {
+      xss: window.__x || window.__xss || null,
+      tags: document.querySelectorAll('img, svg, [onerror], [onload]').length,
+      raw: /<svg\b/i.test(document.body.innerHTML),
+      xp: s.xpLog[day],
+      misses: s.misses['java.types'],
+      lessons: s.dlog[day].l,
+      quest: s.qd.p.lessons,
+      name: s.name,
+      avatar: s.avatar,
+    };
+  }, today);
+  expect(clean.xss).toBeFalsy();
+  expect(clean.tags).toBe(0);
+  expect(clean.raw).toBe(false);
+  expect(clean.xp).toBe(0);
+  expect(clean.misses).toBe(0);
+  expect(clean.lessons).toBe(0);
+  expect(clean.quest).toBe(0);
+  expect(clean.name).toBe(name);
+  expect(clean.avatar).toBe(avatar);
+  const csp = await page.locator('meta[http-equiv="Content-Security-Policy"]').getAttribute('content');
+  expect(csp).toMatch(/script-src 'self'/);
+  expect(csp).not.toMatch(/script-src[^;]*unsafe-inline/);
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await expect(page.getByRole('radio', { name: 'System' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('button', { name: 'Practice', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Types & Variables/ })).toContainText('0 misses');
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await expect(page.locator('h1.h1')).toHaveText(name);
+  expect(await page.locator('.sw').getAttribute('data-id')).toBe(otherId);
+  await page.getByRole('button', { name: 'Edit profile' }).click();
+  await page.locator('#nm').fill('<b>Hi</b>');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(page.locator('h1.h1')).toHaveText('<b>Hi</b>');
+  expect(await page.locator('h1 b, img, svg').count()).toBe(0);
+  await page.locator('.sw').click();
+  await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
+  expect((await page.evaluate(() => window.__BR.S.name)).startsWith('Bob')).toBe(true);
+  expect(await page.evaluate(() => window.__x || window.__xss || document.querySelectorAll('img, svg, [onerror], [onload]').length)).toBeFalsy();
 });

@@ -3,7 +3,7 @@
 const fs = require('fs');
 const path = require('path');
 const root = path.resolve(__dirname, '..');
-const files = ['index.html', 'style.css', 'app.js', 'data.js', 'interview.js', 'sw.js', 'manifest.webmanifest'];
+const files = ['index.html', 'style.css', 'app.js', 'data.js', 'interview.js', 'boot.js', 'sw.js', 'manifest.webmanifest'];
 const limit = 400000;
 let total = 0;
 const parts = files.map(f => {
