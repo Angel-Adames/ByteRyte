@@ -7,7 +7,7 @@ const today=()=>iso(),yday=()=>iso(Date.now()-DAY),dayDiff=(a,b)=>Math.round((ne
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 const AVATARS=['🦊','🐼','🐙','🦉','🐸','🐯','🐨','🦄','🐧','🐳','🦖','🤖','👩‍💻','👨‍💻','🧑‍🚀','🐝'];
-const NEWP=(name='Learner',avatar='🦊')=>({id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,avatar,xp:0,streak:0,best:0,last:null,hearts:5,heartDay:today(),done:{},review:{},misses:{},xpLog:{},gems:50,freezes:0,inv:{fifty:1,skip:1},doubleUntil:0,goal:30,goalDay:null,badges:{},saved:{},dlog:{},stats:{answered:0,correct:0,perfect:0,lessons:0,interviews:0,bestIv:0,reviews:0,challenges:0},onboarded:false,track:'java',unlockAll:false,created:Date.now()});
+const NEWP=(name='Learner',avatar='🦊')=>({id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,avatar,xp:0,streak:0,best:0,last:null,hearts:5,heartDay:today(),done:{},review:{},misses:{},xpLog:{},gems:50,freezes:0,inv:{fifty:1,skip:1},doubleUntil:0,goal:30,goalDay:null,badges:{},saved:{},dlog:{},stats:{answered:0,correct:0,perfect:0,lessons:0,interviews:0,bestIv:0,reviews:0,challenges:0},onboarded:false,track:'java',unlockAll:false,created:Date.now(),curriculum:2,gates:{}});
 // ---------- storage + migration ----------
 const readStore=k=>{try{const t=localStorage.getItem(k);return t?JSON.parse(t):null}catch(e){return null}};
 let G=Object.assign({theme:'system',sound:true,big:false},readStore(GK)||{});
@@ -19,8 +19,10 @@ let S;
 function hydrate(){
   if(!P||typeof P!=='object'||Array.isArray(P))P={active:null,list:{}};
   if(!P.list||typeof P.list!=='object')P.list={};
-  Object.keys(P.list).forEach(id=>{const d=NEWP(),p=P.list[id]||{};
-    P.list[id]=Object.assign(d,p,{id,inv:Object.assign({},d.inv,p.inv||{}),stats:Object.assign({},d.stats,p.stats||{}),saved:Object.assign({},p.saved||{}),badges:Object.assign({},p.badges||{}),done:Object.assign({},p.done||{}),review:Object.assign({},p.review||{}),misses:Object.assign({},p.misses||{}),xpLog:Object.assign({},p.xpLog||{}),dlog:Object.assign({},p.dlog||{})})});
+  Object.keys(P.list).forEach(id=>{const d=NEWP(),raw=P.list[id]||{};
+    const merged=Object.assign(d,raw,{id,inv:Object.assign({},d.inv,raw.inv||{}),stats:Object.assign({},d.stats,raw.stats||{}),saved:Object.assign({},raw.saved||{}),badges:Object.assign({},raw.badges||{}),done:Object.assign({},raw.done||{}),review:Object.assign({},raw.review||{}),misses:Object.assign({},raw.misses||{}),xpLog:Object.assign({},raw.xpLog||{}),dlog:Object.assign({},raw.dlog||{}),gates:Object.assign({},raw.gates||{})});
+    if(!(raw.curriculum>=2))migrateProgress(merged);
+    P.list[id]=merged});
   if(!P.active||!P.list[P.active])P.active=Object.keys(P.list)[0]||null;
   S=P.active?P.list[P.active]:null}
 hydrate();
@@ -45,29 +47,44 @@ const sfx={ok:()=>{tone(660);tone(880,.15,.09)},no:()=>{tone(220,.2,0,'triangle'
 const buzz=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
 const TQ=[];let tBusy=false;function toast(msg){TQ.push(msg);if(!tBusy)nextToast()}function nextToast(){const msg=TQ.shift();if(msg===undefined){tBusy=false;return}tBusy=true;const t=document.createElement('div');t.className='toast';t.setAttribute('role','status');t.textContent=msg;document.body.appendChild(t);const d=TQ.length?1500:2600;setTimeout(()=>t.classList.add('out'),d);setTimeout(()=>{t.remove();nextToast()},d+350)}
 // ---------- syntax highlight ----------
-const KW=/^(abstract|boolean|break|case|catch|char|class|const|continue|default|do|double|else|enum|extends|final|finally|float|for|if|implements|import|instanceof|int|interface|long|new|null|package|private|protected|public|record|return|short|static|super|switch|this|throw|throws|try|var|void|while|true|false|let|func|struct|guard|in|protocol|extension|mutating|nil|some|inout|self|init|where|as|is|yield)$/;
+const KW=/^(abstract|boolean|break|case|catch|char|class|const|continue|default|do|double|else|enum|extends|final|finally|float|for|if|implements|import|instanceof|int|interface|long|new|null|package|permits|private|protected|public|record|return|sealed|short|static|super|switch|this|throw|throws|try|var|void|when|while|true|false|let|func|struct|guard|in|protocol|extension|mutating|nil|some|inout|self|init|where|as|is|yield|async|await)$/;
 function hl(code){const re=/(\/\/.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)')|(\b\d+(?:\.\d+)?[LfdF]?\b)|(@\w+)|(\b[A-Za-z_]\w*\b)|(___)/gm;let out='',i=0,m;
   while((m=re.exec(code))){out+=esc(code.slice(i,m.index));const [w,c,s,n,a,id,bl]=m;
     out+=c?`<span class="tc">${esc(w)}</span>`:s?`<span class="ts">${esc(w)}</span>`:n?`<span class="tn">${w}</span>`:a?`<span class="ta">${w}</span>`:bl?`<span class="blank">___</span>`:KW.test(id)?`<span class="tk">${w}</span>`:/^[A-Z]/.test(id)?`<span class="tt">${w}</span>`:w;i=m.index+w.length}
   return out+esc(code.slice(i))}
 // ---------- data helpers ----------
 const T=id=>TRACKS.find(t=>t.id===id);
-const lessons=t=>{const o=[];t.units.forEach((u,ui)=>u.lessons.forEach((l,li)=>o.push({l,ui,li,key:`${t.id}-${ui}-${li}`})));return o};
+const lessons=t=>{const o=[];t.units.forEach((u,ui)=>u.lessons.forEach((l,li)=>o.push({l,u,ui,li,key:l.id})));return o};
+const findLesson=id=>{const lid=String(id).includes('~')?String(id).split('~')[0]:id;for(const t of TRACKS)for(const u of t.units){const li=u.lessons.findIndex(l=>l.id===lid);if(li>=0)return {t,u,l:u.lessons[li],ui:t.units.indexOf(u),li,id:lid}}return null};
+const DRILL=['java.types','java.strings','java.control','java.methods','java.arrays'];
+const FX_GATE=[...DRILL,'java.classes','java.refs','java.inherit','java.interfaces','java.exceptions'];
 const DJ='https://dev.java/learn/',DO='https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/',FX='https://openjfx.io/javadoc/21/',MDN='https://developer.mozilla.org/en-US/docs/',SW='https://docs.swift.org/swift-book/documentation/the-swift-programming-language/';
 const DOCS={'Types & Variables':DJ+'language-basics/primitive-types/','Strings':DO+'lang/String.html','Control Flow':DJ+'language-basics/controlling-flow/','Methods':DJ+'classes-objects/defining-methods/','Arrays':DJ+'language-basics/arrays/','Classes & Objects':DJ+'classes-objects/','Inheritance & Polymorphism':DJ+'inheritance/','Interfaces & Abstract Classes':DJ+'interfaces/','References & Memory':DJ+'classes-objects/creating-objects/','Exceptions':DJ+'exceptions/','Lists & Generics':DJ+'generics/','Maps & Sets':DJ+'api/collections-framework/','Lambdas & Streams':DJ+'lambdas/','Records, Enums & Equality':DJ+'records/','Sorting & Comparators':DO+'util/Comparator.html','Recursion':DJ+'classes-objects/defining-methods/','Big-O & Searching':DO+'util/Arrays.html','Threads & Concurrency':DO+'util/concurrent/package-summary.html','OOP Design & SOLID':DJ+'interfaces/','Files & I/O':DO+'nio/file/Files.html','Testing with JUnit':'https://junit.org/junit5/docs/current/user-guide/','Interview Patterns':DJ+'api/collections-framework/','Abstract vs Interface':DJ+'interfaces/','Generic Methods':DJ+'generics/','Checked & Unchecked':DJ+'exceptions/','Stream Pipelines':DO+'util/stream/Collectors.html','Records in Practice':DJ+'records/','Enums with State':'https://docs.oracle.com/javase/tutorial/java/javaOO/enum.html','Big-O Tradeoffs':DO+'util/Arrays.html',
 'App Lifecycle & Scene Graph':FX+'javafx.graphics/javafx/application/Application.html','Layouts & Controls':FX+'javafx.graphics/javafx/scene/layout/package-summary.html','Events, Properties & FXML':FX+'javafx.base/javafx/beans/property/package-summary.html','Styling JavaFX with CSS':FX+'javafx.graphics/javafx/scene/doc-files/cssref.html','Concurrency & Tasks':FX+'javafx.graphics/javafx/concurrent/Task.html',
 'Semantic HTML & Forms':MDN+'Glossary/Semantics','Box Model & Selectors':MDN+'Learn_web_development/Core/Styling_basics/Box_model','Flexbox & Grid':MDN+'Web/CSS/CSS_grid_layout','Responsive Design':MDN+'Learn_web_development/Core/CSS_layout/Responsive_Design','Variables, Transitions & Units':MDN+'Web/CSS/Using_CSS_custom_properties',
 'Basics & Optionals':SW+'thebasics/','Value vs Reference Types':SW+'classesandstructures/','Errors & SwiftUI Basics':SW+'errorhandling/','Protocols, Closures & Collections':SW+'protocols/','Enums, Switch & Structs':SW+'enumerations/','Alerts & Dialogs':FX+'javafx.controls/javafx/scene/control/Alert.html','Windows & Modality':FX+'javafx.graphics/javafx/stage/Stage.html','Lists & Selection':FX+'javafx.controls/javafx/scene/control/ListView.html','Forms & Validation':MDN+'Web/CSS/:invalid','Positioning':MDN+'Web/CSS/position','Accessible CSS':MDN+'Web/CSS/:focus-visible','Strings & Characters':SW+'stringsandcharacters/','Throwing Functions':SW+'errorhandling/','SwiftUI Lists':'https://developer.apple.com/documentation/swiftui/foreach'};
-const IVDOC={Swift:SW+'thebasics/',JavaFX:'https://openjfx.io/openjfx-docs/',CSS:MDN+'Web/CSS/CSS_grid_layout',Complexity:DJ+'api/collections-framework/','Data structures':DJ+'api/collections-framework/',OOP:DJ+'inheritance/',Collections:DJ+'api/collections-framework/',Streams:DJ+'lambdas/'};
+const IVDOC={Swift:SW+'thebasics/',JavaFX:'https://openjfx.io/openjfx-docs/',CSS:MDN+'Web/CSS/CSS_grid_layout',Complexity:DJ+'api/collections-framework/','Data structures':DJ+'api/collections-framework/',Coding:DJ+'language-basics/controlling-flow/','Java trivia':DJ+'language-basics/primitive-types/',Patterns:DJ+'api/collections-framework/',OOP:DJ+'inheritance/',Collections:DJ+'api/collections-framework/',Streams:DJ+'lambdas/',JVM:'https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-1.html',Memory:'https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html',Modern:'https://docs.oracle.com/en/java/javase/21/language/java-language-changes.html'};
+Object.assign(DOCS,{
+'How a Program Runs':'https://docs.oracle.com/javase/specs/jvms/se21/html/jvms-1.html',
+'Memory: Values and References':'https://docs.oracle.com/javase/specs/jls/se21/html/jls-4.html',
+'Debugging Mindset':'https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/lang/Throwable.html',
+'Modern Java Syntax':'https://docs.oracle.com/en/java/javase/21/language/java-language-changes.html',
+'Sealed Types':'https://docs.oracle.com/en/java/javase/21/language/sealed-classes-and-interfaces.html',
+'App Lifecycle & Scene Graph':'https://openjfx.io/openjfx-docs/',
+'How the Browser Paints':MDN+'Web/Performance/How_browsers_work',
+'Modern CSS':MDN+'Web/CSS/:has',
+'Observable Models & Navigation':'https://developer.apple.com/documentation/swiftui/managing-model-data-in-your-app',
+'Async, Await, and the Main Actor':SW+'concurrency/'
+});
 const plural=(n,one,many)=>`${n} ${n===1?one:(many||one+'s')}`;
-const docUrl=k=>{if(!k)return null;if(k.startsWith('iv-'))return IVDOC[IV[+k.slice(3)]?.tag]||null;const [t,u,l]=k.split('-');const L=T(t)?.units[u]?.lessons[l];return L?DOCS[L.name]||null:null};
+const docUrl=k=>{if(!k)return null;if(k.startsWith('iv-'))return IVDOC[IV[+k.slice(3)]?.tag]||null;const f=findLesson(k);return f?DOCS[f.l.name]||null:null};
 const docLink=u=>{try{if(!u)return '';const host=new URL(u).hostname.replace(/^www\./,'');return `<a class="learn" href="${u}" target="_blank" rel="noopener">📘 Learn more · ${host} <span aria-hidden="true">↗</span><span class="sr">(opens in a new tab)</span></a>`}catch(e){return ''}};
 const sheetHTML=items=>items&&items.length?`<ul class="cheats">${items.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:'';
 const dl=()=>{const d=today();S.dlog=S.dlog||{};return S.dlog[d]=S.dlog[d]||{l:0,a:0,c:0}};
 const savedKeys=()=>Object.keys(S.saved||{}).filter(k=>exByKey(k)).sort((a,b)=>S.saved[b]-S.saved[a]);
-const exByKey=k=>{if(k.startsWith('iv-'))return IV[+k.slice(3)];const [t,u,l,e]=k.split('-');return T(t)?.units[u]?.lessons[l]?.ex[e]};
-const lessonOf=k=>{const [t,u,l]=k.split('-');return T(t)?.units[u]?.lessons[l]};
-const branchOpen=()=>S.unlockAll||lessons(T('java')).filter(x=>x.ui===0).every(x=>S.done[x.key]);
+const exByKey=k=>{if(k.startsWith('iv-'))return IV[+k.slice(3)];const f=findLesson(k);if(!f)return null;const i=String(k).split('~')[1];return i===undefined?null:f.l.ex[+i]};
+const lessonOf=k=>findLesson(k)?.l||null;
+const trackOpen=t=>{if(!t||!t.parent)return true;if(S.unlockAll)return true;if(S.gates&&S.gates[t.id])return true;return (t.id==='javafx'?FX_GATE:DRILL).every(id=>S.done&&S.done[id])};
 const due=()=>Object.entries(S.review).filter(([k,v])=>v.due<=Date.now()&&exByKey(k)).map(([k])=>k);
 const NAMES={mc:'Concept check',out:'Predict the output',fill:'Complete the code',ar:'Arrange the code',bug:'Spot the bug',fix:'Fix the bug'};
 const dblOn=()=>S.doubleUntil>Date.now();
@@ -96,7 +113,7 @@ const BADGES=[
 ['streak7','☄️','Unstoppable','Reach a 7-day streak',()=>S.best>=7,()=>[S.best,7]],
 ['xp500','⚡','Charged','Earn 500 XP',()=>S.xp>=500,()=>[S.xp,500]],
 ['xp2000','🌩️','Supercharged','Earn 2,000 XP',()=>S.xp>=2000,()=>[S.xp,2000]],
-['unit1','☕','Java Rooted','Complete Java Unit 1',()=>lessons(T('java')).filter(x=>x.ui===0).every(x=>S.done[x.key]),()=>{const u=lessons(T('java')).filter(x=>x.ui===0);return [u.filter(x=>S.done[x.key]).length,u.length]}],
+['unit1','☕','Java Rooted','Complete Java Unit 1 · Foundations',()=>lessons(T('java')).filter(x=>x.u.uid==='foundations').every(x=>S.done[x.key]),()=>{const u=lessons(T('java')).filter(x=>x.u.uid==='foundations');return [u.filter(x=>S.done[x.key]).length,u.length]}],
 ['branch','🌿','Branching Out','Finish a JavaFX and an HTML & CSS lesson',()=>['javafx','css'].every(t=>lessons(T(t)).some(x=>S.done[x.key]))],
 ['swift','🐦','Bilingual','Finish a Swift lesson',()=>lessons(T('swift')).some(x=>S.done[x.key])],
 ['iv1','💼','Interview Ready','Complete a mock interview',()=>S.stats.interviews>=1],
@@ -104,7 +121,7 @@ const BADGES=[
 ['review','🔁','Comeback','Complete 3 review sessions',()=>S.stats.reviews>=3,()=>[S.stats.reviews,3]],
 ['shop','🛍️','Big Spender','Buy something in the shop',()=>S.stats.bought>=1],
 ['java','👑','Java Master','Complete every Java lesson',()=>lessons(T('java')).every(x=>S.done[x.key]),()=>[lessons(T('java')).filter(x=>S.done[x.key]).length,lessons(T('java')).length]],
-['pro','🧰','Professional','Complete Java Unit 5: Professional Java',()=>lessons(T('java')).filter(x=>x.ui===4).every(x=>S.done[x.key]),()=>{const u=lessons(T('java')).filter(x=>x.ui===4);return [u.filter(x=>S.done[x.key]).length,u.length]}],
+['pro','🧰','Professional','Complete Unit 6 · Professional Java',()=>lessons(T('java')).filter(x=>x.u.uid==='pro').every(x=>S.done[x.key]),()=>{const u=lessons(T('java')).filter(x=>x.u.uid==='pro');return [u.filter(x=>S.done[x.key]).length,u.length]}],
 ['curator','★','Curator','Save 3 questions to revisit',()=>Object.keys(S.saved||{}).length>=3,()=>[Object.keys(S.saved||{}).length,3]],
 ['speed','🏎️','Speed Demon','Get 15+ right in a speed challenge',()=>(S.stats.bestChal||0)>=15,()=>[S.stats.bestChal||0,15]]];
 function checkBadges(){BADGES.forEach(([id,ic,n,,f])=>{if(!S.badges[id]&&f()){S.badges[id]=Date.now();setTimeout(()=>{toast(`${ic} Badge unlocked: ${n}`);sfx.coin()},400)}});save()}
@@ -123,31 +140,31 @@ function shell(inner,{nav=true}={}){regen();document.querySelectorAll('.conf').f
 function go(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,settings}[v]||home)()}
 // ---------- learn ----------
 function home(){
-  cur='learn';daily();const t=T(S.track),ls=lessons(t),locked=t.parent&&!branchOpen(),firstOpen=ls.findIndex(x=>!S.done[x.key]),gp=Math.min(100,(S.xpLog[today()]||0)/S.goal*100);
+  cur='learn';daily();const t=T(S.track),ls=lessons(t),locked=t.parent&&!trackOpen(t),firstOpen=ls.findIndex(x=>!S.done[x.key]),gp=Math.min(100,(S.xpLog[today()]||0)/S.goal*100);
   let h=`<section class="goalcard"><div class="row"><b>Daily goal</b><span>${S.xpLog[today()]||0} / ${S.goal} XP</span></div><div class="bar"><i style="width:${gp}%"></i></div>${S.last===yday()&&!(S.xpLog[today()])?`<div class="pill warn">🔥 Keep your ${S.streak}-day streak alive — do one lesson today!</div>`:''}${S.freezes?`<div class="pill">🧊 ${S.freezes} streak freeze${S.freezes>1?'s':''} ready</div>`:''}${dblOn()?`<div class="pill">⚡ Double XP active · ${Math.ceil((S.doubleUntil-Date.now())/60000)} min left</div>`:''}</section>
   <button class="qchip" data-go="practice">🗓 Daily quests <b>${quests().filter(q=>q.done).length}/3</b><span>›</span></button>
   <div class="tabs" role="tablist">`;
   TRACKS.forEach(x=>{const d=lessons(x).filter(y=>S.done[y.key]).length,n=lessons(x).length;
     h+=`<button role="tab" aria-selected="${x.id===S.track}" class="tab ${x.id===S.track?'on':''}" data-t="${x.id}" style="--c:${x.color}">${x.icon} ${x.name}<small>${x.primary?'Main path':x.parent?'↳ Java branch':'Secondary'} · ${d}/${n}</small></button>`});
   h+=`</div>`;
-  if(locked)h+=`<div class="branchbox">🔒 This branch grows off the Java trunk. Finish <b>Java Unit 1</b> to unlock it.</div>`;
-  t.units.forEach((u,ui)=>{const ud=u.lessons.filter((l,li)=>S.done[`${t.id}-${ui}-${li}`]).length;
+  if(locked)h+=`<div class="branchbox">🔒 ${t.id==='javafx'?'JavaFX is a separate OpenJFX library. Finish <b>Java through Exceptions</b> (classes, references, inheritance, interfaces) so the scene graph has something to stand on.':'HTML &amp; CSS unlocks after <b>types, strings, control flow, methods, and arrays</b>. You do not need classes for it.'}</div>`;
+  t.units.forEach((u,ui)=>{const ud=u.lessons.filter(l=>S.done[l.id]).length;
     h+=`<div class="unit" style="--c:${t.color}"><div>${esc(u.name)}<small>${ud}/${u.lessons.length} lessons complete</small></div><div class="uright"><button class="guide" data-u="${ui}" aria-label="📖 Guide, ${esc(u.name)}">📖 Guide</button><div class="ring" style="--p:${ud/u.lessons.length*100}" aria-hidden="true"></div></div></div><div class="path" style="--c:${t.color}">`;
     u.lessons.forEach((l,li)=>{const i=ls.findIndex(x=>x.ui===ui&&x.li===li),k=ls[i].key,open=!locked&&(S.unlockAll||i<=firstOpen||firstOpen<0||S.done[k]),isCur=open&&!S.done[k]&&i===firstOpen;
       const off=[0,48,68,48,0,-48,-68,-48][i%8];
       h+=`<div class="nodewrap ${isCur?'hascur':''}" style="--x:${off}px">${isCur?'<div class="startbub">START</div>':''}<button class="node ${open?'':'lock'} ${S.done[k]?'done':''} ${isCur?'cur':''}" style="--c:${t.color}" data-k="${k}" ${open?'':'disabled'} aria-label="${esc(l.name)}${S.done[k]?' (complete)':open?'':' (locked)'}">${S.done[k]?'★':open?t.icon:'🔒'}</button><div class="nlab">${esc(l.name)}</div></div>`});
     h+=`</div>`});
-  if(t.id==='java')h+=`<div class="branchbox">🌿 Branches: <b>JavaFX</b> and <b>HTML &amp; CSS</b> (incl. JavaFX CSS) ${branchOpen()?'are unlocked — switch tabs above.':'unlock after Java Unit 1.'}</div>`;
-  h+=`<p class="note">Print answers were run on JDK 21. Swift snippets were checked against the Swift.org language guide. Concepts checked against Oracle, OpenJFX, and MDN. Gems stay in the app.</p>`;
+  if(t.id==='java')h+=`<div class="branchbox">🌿 <b>HTML &amp; CSS</b> ${trackOpen(T('css'))?'is open.':'opens after types through arrays.'} <b>JavaFX</b> (OpenJFX 21+, not part of the JDK) ${trackOpen(T('javafx'))?'is open.':'opens after object-oriented Java.'} Switch tabs above once a branch is open.</div>`;
+  h+=`<p class="note">Java print answers were run on JDK 21. Swift print answers were run on Swift 6.0.3. Concepts checked against Oracle, OpenJFX, MDN, and Swift.org. Gems stay in the app.</p>`;
   shell(h);
   $$('.tab').forEach(b=>b.onclick=()=>{S.track=b.dataset.t;save();home()});
-  $$('.node:not(.lock)').forEach(b=>b.onclick=()=>{const L=lessonOf(b.dataset.k);start(L.ex.map((e,i)=>({e,k:`${b.dataset.k}-${i}`})),{key:b.dataset.k,name:L.name,tip:L.tip,sheet:L.sheet,mode:'lesson'})});
+  $$('.node:not(.lock)').forEach(b=>b.onclick=()=>{const L=lessonOf(b.dataset.k);start(L.ex.map((e,i)=>({e,k:`${b.dataset.k}~${i}`})),{key:b.dataset.k,name:L.name,tip:L.tip,sheet:L.sheet,mode:'lesson'})});
   $$('.guide').forEach(b=>b.onclick=()=>guide(t,+b.dataset.u));
   $('.node.cur')?.scrollIntoView({block:'center'});
 }
 function guide(t,ui){daily();const u=t.units[ui];
   shell(`<button class="link" id="bk">‹ Back to path</button><h1 class="h1">📖 ${esc(u.name)}</h1><p class="muted">Key ideas for every lesson in this unit — read before you start, or come back to refresh.</p>
-  ${u.lessons.map((l,li)=>{const ex=l.ex.find(e=>e.t==='out'&&e.code.split('\n').length<=4);return `<article class="gcard" style="--c:${t.color}"><h2>${t.icon} ${esc(l.name)} ${S.done[`${t.id}-${ui}-${li}`]?'<span class="tag">✓ done</span>':''}</h2><p>${esc(l.tip)}</p>${sheetHTML(l.sheet)}${docLink(DOCS[l.name])}${ex?`<div class="gex"><small>Example</small><pre class="code sm" tabindex="0">${hl(ex.code)}</pre><small>Prints: <code>${esc(ex.opts[ex.a])}</code></small></div>`:''}</article>`}).join('')}`);
+  ${u.lessons.map(l=>{const ex=l.ex.find(e=>e.t==='out'&&e.code.split('\n').length<=4);return `<article class="gcard" style="--c:${t.color}"><h2>${t.icon} ${esc(l.name)} ${S.done[l.id]?'<span class="tag">✓ done</span>':''}</h2><p>${esc(l.tip)}</p>${sheetHTML(l.sheet)}${docLink(DOCS[l.name])}${ex?`<div class="gex"><small>Example</small><pre class="code sm" tabindex="0">${hl(ex.code)}</pre><small>Prints: <code>${esc(ex.opts[ex.a])}</code></small></div>`:''}</article>`}).join('')}`);
   $('#bk').onclick=home}
 // ---------- practice ----------
 function practice(){cur='practice';daily();const dn=due().length;
@@ -157,14 +174,14 @@ function practice(){cur='practice';daily();const dn=due().length;
   <button class="pcard" id="chal"><span class="pic">⏱️</span><span><b>Speed challenge</b><small>60 seconds, as many as you can. Best: ${S.stats.bestChal||0}</small></span></button>
   <button class="pcard" id="svd" ${savedKeys().length?'':'disabled'}><span class="pic">★</span><span><b>Saved questions</b><small>${savedKeys().length?`${plural(savedKeys().length,'saved question')} · no hearts needed`:'None yet. After you answer, tap Save question to keep it here.'}</small></span></button>
   <h2 class="h2">Weak spots</h2>`;
-  h+=weak.length?weak.map(([k,n])=>`<button class="pcard weak" data-k="${k}"><span class="pic">${T(k.split('-')[0]).icon}</span><span><b>${esc(lessonOf(k).name)}</b><small>${plural(n,'miss','misses')} · ${T(k.split('-')[0]).name}</small></span></button>`).join(''):'<div class="empty"><span aria-hidden="true">🌱</span><p>No weak spots yet. Miss a question and that lesson will show up here.</p></div>';
-  if(savedKeys().length)h+=`<h2 class="h2">Saved · ${savedKeys().length}</h2><ul class="svlist">${savedKeys().map(k=>{const e=exByKey(k),src=k.startsWith('iv-')?'Interview · '+e.tag:lessonOf(k.split('-').slice(0,3).join('-'))?.name;return `<li><span><b>${esc((e.q||(e.t==='out'?'What does this print?':'Question')).slice(0,90))}</b><small>${esc(src||'')}</small></span><button class="link unsv" data-k="${k}" aria-label="Remove from saved">Remove</button></li>`}).join('')}</ul>`;
+  h+=weak.length?weak.map(([k,n])=>{const f=findLesson(k);return `<button class="pcard weak" data-k="${k}"><span class="pic">${f.t.icon}</span><span><b>${esc(f.l.name)}</b><small>${plural(n,'miss','misses')} · ${f.t.name}</small></span></button>`}).join(''):'<div class="empty"><span aria-hidden="true">🌱</span><p>No weak spots yet. Miss a question and that lesson will show up here.</p></div>';
+  if(savedKeys().length)h+=`<h2 class="h2">Saved · ${savedKeys().length}</h2><ul class="svlist">${savedKeys().map(k=>{const e=exByKey(k),src=k.startsWith('iv-')?'Interview · '+e.tag:lessonOf(k.split('~')[0])?.name;return `<li><span><b>${esc((e.q||(e.t==='out'?'What does this print?':'Question')).slice(0,90))}</b><small>${esc(src||'')}</small></span><button class="link unsv" data-k="${k}" aria-label="Remove from saved">Remove</button></li>`}).join('')}</ul>`;
   shell(h);
   $('#svd').onclick=()=>{const ks=savedKeys();if(ks.length)start(shuffle(ks).map(k=>({e:exByKey(k),k})),{name:'Saved questions',mode:'saved'})};
   $$('.unsv').forEach(b=>b.onclick=()=>{delete S.saved[b.dataset.k];save();practice()});
   $('#rev').onclick=()=>{const d=shuffle(due()).slice(0,10);if(d.length)start(d.map(k=>({e:exByKey(k),k})),{name:'Review',mode:'review'})};
-  $('#chal').onclick=()=>{const pool=[];TRACKS.forEach(t=>lessons(t).forEach(x=>{if(S.done[x.key]||S.unlockAll||t.id==='java'&&x.ui===0)x.l.ex.forEach((e,i)=>{if(e.t!=='ar')pool.push({e,k:`${x.key}-${i}`})})}));start(shuffle(pool),{name:'Speed challenge',mode:'challenge',secs:60})};
-  $$('.weak').forEach(b=>b.onclick=()=>{const L=lessonOf(b.dataset.k);start(shuffle(L.ex.map((e,i)=>({e,k:`${b.dataset.k}-${i}`}))),{name:'Practice: '+L.name,mode:'practice',pk:b.dataset.k})});
+  $('#chal').onclick=()=>{const pool=[];TRACKS.forEach(t=>lessons(t).forEach(x=>{if(S.done[x.key]||S.unlockAll||t.id==='java'&&x.u.uid==='foundations')x.l.ex.forEach((e,i)=>{if(e.t!=='ar')pool.push({e,k:`${x.key}~${i}`})})}));start(shuffle(pool),{name:'Speed challenge',mode:'challenge',secs:60})};
+  $$('.weak').forEach(b=>b.onclick=()=>{const L=lessonOf(b.dataset.k);start(shuffle(L.ex.map((e,i)=>({e,k:`${b.dataset.k}~${i}`}))),{name:'Practice: '+L.name,mode:'practice',pk:b.dataset.k})});
 }
 // ---------- interview ----------
 function ivHome(){cur='interview';daily();
@@ -227,13 +244,13 @@ function editProfile(isNew){let av=S.avatar;
   <label class="lbl" for="nm">Your name</label><input id="nm" class="inp" maxlength="24" value="${esc(S.name==='Learner'&&isNew?'':S.name)}" placeholder="e.g. Alex" autocomplete="nickname">
   <div class="lbl">Pick an avatar</div><div class="avs" role="radiogroup">${AVATARS.map(a=>`<button role="radio" aria-checked="${a===av}" class="avatar ${a===av?'on':''}" data-a="${a}">${a}</button>`).join('')}</div>
   <div class="lbl">Daily goal</div><div class="goals">${[[10,'Casual'],[30,'Regular'],[50,'Serious'],[100,'Intense']].map(([g,n])=>`<button class="opt goal ${S.goal===g?'sel':''}" data-g="${g}"><b>${n}</b> · ${g} XP/day</button>`).join('')}</div>
-  ${isNew?`<button class="btn" id="sv">Start from scratch</button><button class="btn alt" id="pl" style="margin-top:12px">Take placement test (skip Java Unit 1)</button>`:`<button class="btn" id="sv">Save</button>${Object.keys(P.list).length>1?'<button class="btn red" id="del" style="margin-top:12px">Delete this profile</button>':''}<button class="btn alt" id="cx" style="margin-top:12px">Cancel</button>`}</main>`;
+  ${isNew?`<button class="btn" id="sv">Start from scratch</button><button class="btn alt" id="pl" style="margin-top:12px">Take placement test (skip the Java language drill)</button>`:`<button class="btn" id="sv">Save</button>${Object.keys(P.list).length>1?'<button class="btn red" id="del" style="margin-top:12px">Delete this profile</button>':''}<button class="btn alt" id="cx" style="margin-top:12px">Cancel</button>`}</main>`;
   $$('.avs .avatar').forEach(b=>b.onclick=()=>{av=b.dataset.a;$$('.avs .avatar').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-checked',x===b)})});
   $$('.goal').forEach(b=>b.onclick=()=>{S.goal=+b.dataset.g;$$('.goal').forEach(x=>x.classList.toggle('sel',x===b))});
   const commit=()=>{S.name=($('#nm').value.trim()||'Learner').slice(0,24);S.avatar=av;S.onboarded=true;save()};
   $('#sv').onclick=()=>{commit();isNew?home():profile()};
   $('#cx')&&($('#cx').onclick=profile);
-  $('#pl')&&($('#pl').onclick=()=>{commit();const pool=[];lessons(T('java')).filter(x=>x.ui===0).forEach(x=>{const e=x.l.ex.filter(e=>e.t!=='ar');pool.push(...shuffle(e).slice(0,2).map((e)=>({e,k:x.key+'-'+x.l.ex.indexOf(e)})))});start(pool,{name:'Placement test',mode:'placement'})});
+  $('#pl')&&($('#pl').onclick=()=>{commit();const pool=[];lessons(T('java')).filter(x=>DRILL.includes(x.key)).forEach(x=>{const e=x.l.ex.filter(e=>e.t!=='ar');pool.push(...shuffle(e).slice(0,2).map((e)=>({e,k:x.key+'~'+x.l.ex.indexOf(e)})))});start(pool,{name:'Placement test',mode:'placement'})});
   $('#del')&&($('#del').onclick=()=>{if(!confirm(`Delete ${S.name}'s profile? This cannot be undone.`))return;delete P.list[S.id];P.active=Object.keys(P.list)[0];S=P.list[P.active];save();home()});
 }
 const onboard=()=>editProfile(true);
@@ -303,7 +320,7 @@ function judge(ok,ans){
   if(ok){R.done++;if(first){R.correct++;qBump('correct')}sfx.ok();buzz(15);
     if(S.review[k]&&first){const b=S.review[k].box+1;if(b>3)delete S.review[k];else S.review[k]={box:b,due:Date.now()+[0,1,3,7][b]*DAY}}}
   else{R.mist.add(k);sfx.no();buzz([40,40,60]);S.review[k]={box:0,due:Date.now()};
-    const lk=k.split('-').slice(0,3).join('-');if(!k.startsWith('iv'))S.misses[lk]=(S.misses[lk]||0)+1;
+    if(!k.startsWith('iv')){const lk=k.split('~')[0];S.misses[lk]=(S.misses[lk]||0)+1}
     if(!timed()&&R.mode!=='placement'&&R.mode!=='review')R.q.push(it);else R.done++;
     if(!noHearts()){if(S.hearts>=5)S.heartAt=Date.now();S.hearts=Math.max(0,S.hearts-1)}
     $('.qmain').classList.add('shake');if($('#hs'))$('#hs').textContent='❤️ '+S.hearts}
@@ -328,7 +345,7 @@ function finish(timeUp){
   else if(m==='review'){S.stats.reviews++;xp=5+R.correct;title='Review complete!';qBump('review');S.hearts=Math.min(5,S.hearts+1);extra='<p class="muted">+1 ❤️ for reviewing</p>'}
   else if(m==='practice'||m==='saved'){xp=5+R.correct;title='Practice complete!';qBump('review')}
   else if(m==='challenge'){title=timeUp?'Time\'s up!':'Challenge complete!';xp=R.correct*2;gem=R.correct;S.stats.challenges++;if(R.correct>(S.stats.bestChal||0)){S.stats.bestChal=R.correct;extra='<p class="pill up">🎉 New personal best!</p>'}}
-  else if(m==='placement'){title='Placement result';const pass=R.correct>=Math.ceil(R.total*.8);if(pass)lessons(T('java')).filter(x=>x.ui===0).forEach(x=>S.done[x.key]=true);xp=R.correct;extra=pass?'<p class="pill up">✅ Java Unit 1 unlocked as complete — branches are open!</p>':'<p class="muted">Let\'s start from the foundations — they\'ll go fast.</p>'}
+  else if(m==='placement'){title='Placement result';const pass=R.correct>=Math.ceil(R.total*.8);if(pass){DRILL.forEach(id=>S.done[id]=true);S.gates=Object.assign({},S.gates,{css:true})}xp=R.correct;extra=pass?'<p class="pill up">✅ Language drill marked done. HTML &amp; CSS is open. JavaFX still waits for object-oriented Java, and the how-it-runs lessons stay on your path.</p>':'<p class="muted">Let\'s start from the foundations — they\'ll go fast.</p>'}
   if(m==='interview')return ivSummary(timeUp);
   const acc=answered?Math.round(R.correct/(m==='lesson'||m==='practice'||m==='saved'?R.total:answered)*100):0;
   const lv0=level().L;xp=addXP(xp);if(gem)S.gems+=gem;const lv1=level().L;if(lv1>lv0){S.gems+=20;extra+=`<p class="pill lvup">🆙 Level up! You reached level ${lv1} · +20 💎</p>`}checkBadges();save();sfx.win();buzz([30,50,30]);const secs=Math.round((Date.now()-R.t0)/1000);
