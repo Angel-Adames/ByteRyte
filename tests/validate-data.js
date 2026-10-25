@@ -161,6 +161,12 @@ lacks('or use pattern matching.');
 has('A later lesson, Modern Java, writes that test and cast together as instanceof Cat c.');
 has('ArrayDeque is a double-ended queue');
 has('A PriorityQueue hands back the smallest next.');
+lacks('the box model in the next lesson');
+has('the Box Model lesson gets its sizes');
+lacks('Records were the previous lessons');
+has('Records, earlier in this unit, carry the fields. Sorting is its own lesson.');
+lacks('That form is pattern matching.');
+has('Pattern matching (instanceof String s) was the Modern Java lesson. This lesson does not add a new form of it.');
 
 const exKey = e => JSON.stringify([e.t, e.q || '', e.code || '', e.opts || e.lines || []]);
 const seenAll = new Map();

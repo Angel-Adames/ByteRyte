@@ -185,7 +185,9 @@ const trackOpen=t=>{if(!t||!t.parent)return true;if(S.unlockAll)return true;if(S
 const due=()=>Object.entries(S.review).filter(([k,v])=>v.due<=Date.now()&&exByKey(k)).map(([k])=>k);
 const NAMES={mc:'Concept check',out:'Predict the output',fill:'Complete the code',ar:'Arrange the code',bug:'Spot the bug',fix:'Fix the bug'};
 const dblOn=()=>S.doubleUntil>Date.now();
-function addXP(n){if(dblOn())n*=2;S.xp+=n;S.xpLog[today()]=(S.xpLog[today()]||0)+n;
+// A session keeps the boost that was running when it started, including after the 15 minutes end.
+const boosted=()=>R?S.doubleUntil>R.t0:dblOn();
+function addXP(n){if(boosted())n*=2;S.xp+=n;S.xpLog[today()]=(S.xpLog[today()]||0)+n;
   if(S.last!==today()){S.streak=S.last===yday()?S.streak+1:1;S.last=today();S.best=Math.max(S.best,S.streak);if(S.streak%7===0){gems(20,'7-day streak bonus')}}
   settleRewards();return n}
 function gems(n,why){S.gems+=n;if(why)toast(`💎 +${n} — ${why}`);sfx.coin()}
@@ -337,12 +339,12 @@ const ITEMS=[['hearts','❤️','Heart refill','Restore all 5 hearts now (otherw
 ['freeze','🧊','Streak freeze','Protects your streak for one missed day (max 2)',50,()=>S.freezes<2,()=>{S.freezes++}],
 ['fifty','✂️','50/50 hint ×3','Remove two wrong answers on a question',20,()=>true,()=>{S.inv.fifty=(S.inv.fifty||0)+3}],
 ['skip','⏭️','Skip question ×2','Skip a hard question without losing a heart',25,()=>true,()=>{S.inv.skip=(S.inv.skip||0)+2}],
-['double','⚡','Double XP (15 min)','Earn 2× XP for 15 minutes',40,()=>true,()=>{S.doubleUntil=Math.max(Date.now(),S.doubleUntil)+15*60000}]];
+['double','⚡','Double XP (15 min)','Adds 15 minutes. A lesson you start while it is active earns 2× XP',40,()=>true,()=>{S.doubleUntil=Math.max(Date.now(),S.doubleUntil)+15*60000}]];
 function shop(){cur='shop';daily();
   shell(`<h1 class="h1">Gem Shop</h1><div class="wallet" aria-label="${S.gems} gems"><span>💎</span><div><b>${compact(S.gems)}</b><small>gems · earned from lessons, goals, streaks and interviews. Just for fun: no real money involved.</small></div></div>
   <div class="inv">Your stuff: ✂️ ${S.inv.fifty||0} · ⏭️ ${S.inv.skip||0} · 🧊 ${S.freezes}/2 ${dblOn()?'· ⚡ active':''}</div>
   ${ITEMS.map(([id,ic,n,d,c,ok])=>{const ready=ok()&&S.gems>=c;const label=!ok()?(id==='hearts'?'Full':'Max'):S.gems<c?`Need ${c-S.gems}`:`💎 ${c}`;return `<div class="sitem"><span class="pic">${ic}</span><div><b>${n}</b><small>${d}</small></div><button class="btn sm buy" data-id="${id}" ${ready?'':'disabled'} aria-label="${esc(n)}: ${label}">${label}</button></div>`}).join('')}
-  <h2 class="h2">How to earn gems</h2><ul class="muted earn"><li>Finish a lesson: +5 (perfect lesson: +10)</li><li>Hit your daily goal: +10</li><li>Every 7-day streak: +20</li><li>Mock interview: +2 per correct answer</li><li>Speed challenge: +1 per correct answer</li></ul>`);
+  <h2 class="h2">How to earn gems</h2><ul class="muted earn"><li>Finish a lesson: +5 (perfect lesson: +10)</li><li>Hit your daily goal: +10</li><li>Every 7-day streak: +20</li><li>Level up: +20</li><li>Daily quest: +15</li><li>All 3 quests: +25</li><li>Mock interview: +2 per correct answer</li><li>Speed challenge: +1 per correct answer</li></ul>`);
   $$('.buy').forEach(b=>b.onclick=()=>{const it=ITEMS.find(x=>x[0]===b.dataset.id);const now=Date.now();if(!it||S.gems<it[4]||!it[5]()||now-(buyAt[it[0]]||0)<400)return;buyAt[it[0]]=now;S.gems-=it[4];it[6]();S.stats.bought=(S.stats.bought||0)+1;sfx.coin();buzz(20);toast(`${it[1]} ${it[2]} purchased!`);checkBadges();save();shop()})}
 // ---------- profile ----------
 const buyAt={},tapLock={};let addLock=false;
@@ -397,7 +399,7 @@ const onboard=()=>editProfile(true);
 // ---------- settings ----------
 function settings(){cur='settings';daily();
   shell(`<h1 class="h1">Settings</h1>
-  <div class="set"><b>Appearance</b><div class="seg" role="radiogroup">${['system','light','dark'].map(t=>`<button role="radio" aria-checked="${G.theme===t}" class="${G.theme===t?'on':''}" data-th="${t}">${{system:'🖥 System',light:'☀️ Light',dark:'🌙 Dark'}[t]}</button>`).join('')}</div></div>
+  <div class="set"><b id="appear">Appearance</b><div class="seg" role="radiogroup" aria-labelledby="appear">${['system','light','dark'].map(t=>`<button role="radio" aria-checked="${G.theme===t}" class="${G.theme===t?'on':''}" data-th="${t}">${{system:'🖥 System',light:'☀️ Light',dark:'🌙 Dark'}[t]}</button>`).join('')}</div></div>
   <div class="set row"><b>Sound effects</b><button class="switch ${G.sound?'on':''}" id="snd" role="switch" aria-checked="${G.sound}" aria-label="Sound effects"><i></i></button></div>
   <div class="set row"><div><b>Larger text</b><p class="muted" style="margin:2px 0 0">Bigger type and buttons for readability</p></div><button class="switch ${G.big?'on':''}" id="big" role="switch" aria-checked="${G.big}" aria-label="Larger text"><i></i></button></div>
   <div class="set row"><b>Unlock all lessons</b><button class="switch ${S.unlockAll?'on':''}" id="ua" role="switch" aria-checked="${S.unlockAll}" aria-label="Unlock all lessons"><i></i></button></div>
@@ -419,9 +421,19 @@ function settings(){cur='settings';daily();
 let R,timerId,heartWatch;
 function once(el){if(!el)return false;const n=Date.now();if(el.__t&&n-el.__t<450)return false;el.__t=n;return true}
 function tap(id){if(tapLock[id])return false;tapLock[id]=true;queueMicrotask(()=>{tapLock[id]=false});return true}
+function armSessionWatch(){
+  clearInterval(heartWatch);
+  heartWatch=setInterval(()=>{
+    if(!R){clearInterval(heartWatch);return}
+    if(!heartsDue())return;
+    daily();
+    const hs=$('#hs');if(hs)hs.textContent='❤️ '+S.hearts;
+  },1000);
+}
 function start(items,opt){
   clearInterval(timerId);clearInterval(heartWatch);daily();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0){histPush({screen:'hearts'});return outOfHearts()}
   R=Object.assign({q:items.slice(),total:items.length,done:0,correct:0,mist:new Set(),res:[],t0:Date.now()},opt);
+  armSessionWatch();
   histPush({screen:'session',back:cur});
   if(R.mode==='challenge'||R.mode==='interview'){R.end=Date.now()+R.secs*1000;timerId=setInterval(tick,250)}
   app.className='';if(R.tip){app.innerHTML=`<header class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar"><i style="width:0"></i></div></header><main class="fade"><div class="kind">💡 Before you start</div><h1 class="h1">${esc(R.name)}</h1><div class="tip">${esc(R.tip)}</div>${sheetHTML(R.sheet)}<p class="muted">${R.total} exercises · mistakes come back at the end and in Review.</p></main><footer class="foot"><div class="in"><button class="btn" id="go">Start lesson</button></div></footer>`;
@@ -435,12 +447,12 @@ function next(){
   const {e}=R.q[0],tr=e.tag?`<span class="tag">${e.tag}</span>`:'';let sel=null;
   const pct=timed()?R.done/Math.max(R.done+1,R.mode==='challenge'?R.done+1:R.total)*100:R.done/R.total*100;
   let h=`<header class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar" role="progressbar" aria-label="Lesson progress" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>${R.mode==='challenge'?`<span class="stat" aria-live="polite">✅ ${R.correct}</span>`:''}${timed()?`<span class="stat tmr" id="tmr">⏱</span>`:noHearts()?`<span class="stat">${R.done}/${R.total}</span>`:`<span class="stat" id="hs">❤️ ${S.hearts}</span>`}</header>
-  <main class="fade qmain"><div class="kind">${NAMES[e.t]} ${tr}${dblOn()?'<span class="tag gold">2× XP</span>':''}</div><h1 class="q">${esc(e.q||'What does this print?')}</h1>`;
+  <main class="fade qmain"><div class="kind">${NAMES[e.t]} ${tr}${boosted()?'<span class="tag gold">2× XP</span>':''}</div><h1 class="q" id="prompt">${esc(e.q||'What does this print?')}</h1>`;
   if(e.code)h+=`<pre class="code" tabindex="0" aria-label="Code">${hl(e.code)}</pre>`;
   if(e.t==='fix')h+=`<p class="fixnote">Pick the line that makes this correct.</p>`;
   if(e.t==='ar')h+=`<div class="zone" id="ans" aria-label="Your answer"><span class="ph">Tap lines below in the right order</span></div><div class="zone bank" id="bank"></div>`;
   else{const lst=e.t==='bug'?e.lines.map((x,i)=>[x,i]):shuffle(e.opts.map((x,i)=>[x,i]));
-    h+=`<div class="opts" role="radiogroup">`+lst.map(([x,i],n)=>`<button role="radio" aria-checked="false" class="opt ${e.t!=='mc'?'code':''}" data-i="${i}"><kbd>${n+1}</kbd>${e.t==='bug'?`<span class="sr">Line ${n+1}. </span>`:''}<span>${e.t==='mc'?esc(x):hl(x)}</span></button>`).join('')+`</div>`}
+    h+=`<div class="opts" role="radiogroup" aria-labelledby="prompt">`+lst.map(([x,i],n)=>`<button role="radio" aria-checked="false" class="opt ${e.t!=='mc'?'code':''}" data-i="${i}"><kbd>${n+1}</kbd>${e.t==='bug'?`<span class="sr">Line ${n+1}. </span>`:''}<span>${e.t==='mc'?esc(x):hl(x)}</span></button>`).join('')+`</div>`}
   const pw=R.mode!=='placement'&&R.mode!=='interview';
   h+=`</main><footer class="foot" id="ft"><div class="in">${pw?`<div class="pups"><button class="pup" id="ff" ${S.inv.fifty&&e.t!=='ar'&&e.t!=='bug'?'':'disabled'}>✂️ 50/50 <b>${S.inv.fifty||0}</b><span class="sr"> hint, ${S.inv.fifty||0} left</span></button><button class="pup" id="sk" ${S.inv.skip?'':'disabled'}>⏭️ Skip <b>${S.inv.skip||0}</b><span class="sr">, ${S.inv.skip||0} left</span></button></div>`:''}<button class="btn" id="chk" disabled>Check</button></div></footer>`;
   app.className='';app.innerHTML=h;tick&&timed()&&tick();
@@ -484,7 +496,7 @@ function outOfHearts(){daily();clearInterval(timerId);clearInterval(heartWatch);
   draw();
   heartWatch=setInterval(()=>{if(!$('#buyh')){clearInterval(heartWatch);return}const before=$('#buyh').dataset.nxt;if(heartsDue())daily();if(!S||!$('#buyh')){clearInterval(heartWatch);return}if(S.hearts>0){clearInterval(heartWatch);land('learn');return}const now=`${S.hearts}|${nextHeart()}|${S.gems}`;if(now!==before)draw()},1000)}
 function finish(timeUp){
-  clearInterval(timerId);if(!R)return;daily();const m=R.mode;
+  clearInterval(timerId);clearInterval(heartWatch);if(!R)return;daily();const m=R.mode;
   let xp=0,gem=0,title='Lesson complete!',extra='';
   const answered=R.res.filter(r=>r.ok!==null).length;
   const skipped=R.res.some(r=>r.ok===null);
