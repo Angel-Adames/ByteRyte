@@ -507,3 +507,245 @@ An earlier full run of the same suite failed, 20 failed and 153 passed, because 
 - First-load time is on localhost with no CPU or network throttle. The byte budget is uncompressed file size.
 - The offline spec still runs only on `desk-light`.
 - Swift still skips with exit 0 when the toolchain is absent. It ran here on Swift 6.0.3.
+
+# Review cycles 51–75
+
+Batch 3. Same rules: a cycle names what was checked, what was found, and the test that proved it. A cycle that found no defect says so.
+
+## Cycle 51 — A later click on the same shop item
+
+Checked a second Streak freeze click about 150ms after the first. The previous lock cleared on the next microtask, so this click bought a second freeze.
+
+Fix: each shop item ignores another buy for 400ms. A click after that window still buys.
+
+Verification: `a freeze click a moment later does not buy a second one` PASS on all four projects. At 150ms the profile still has 1 freeze and 350 gems. After 420ms it has 2 freezes and 300 gems.
+
+## Cycle 52 — Same-turn double click
+
+Checked two clicks on the freeze button in one turn, plus the same pattern for adding a profile, answering, and the sound switch.
+
+Found nothing new. The 400ms window also covers the same-turn case the microtask lock used to cover.
+
+Verification: `rapid double taps buy, add, answer, and toggle once` PASS on all four projects.
+
+## Cycle 53 — A deliberate second freeze in the shop flow
+
+Checked the shop path that buys every item and then a second freeze on purpose.
+
+Found the second freeze could now fall inside the 400ms window, because the clicks are fast.
+
+Fix: that test waits 420ms before the second freeze, which is the deliberate purchase.
+
+Verification: `shop buys every power-up and refuses an empty wallet` PASS on all four projects. Freezes end at 2, then the button is disabled at the max.
+
+## Cycle 54 — Offline cache isolated per project
+
+Checked why the offline spec ran on one project. All four projects shared `127.0.0.1:8877`, so they shared one service-worker origin.
+
+Fix: phone-light, phone-dark, desk-light, and desk-dark use ports 8877–8880. Each project has its own origin and its own cache. The spec no longer skips.
+
+Verification: `offline reload under /ByteRyte/ uses cache v15` PASS on all four projects. The reloaded page is still under `/ByteRyte/` and shows Daily goal while offline.
+
+## Cycle 55 — Slow 4G first load
+
+Checked the first view of Daily goal with Chromium's slow-4G network (1.6 Mb/s down, 750 Kb/s up, 150ms latency) and a 4× CPU throttle, on the 390×844 phone.
+
+Found 2168ms in the final run (2182ms on the earlier run). That is inside an 8 second guard. The scripts are still the blocking tags in `index.html`. No loader change.
+
+Verification: `slow 4G and a 4x CPU still reach the daily goal` PASS on `phone-light`. It is skipped on the other three projects so the suite measures it once. Python's server does not gzip; GitHub Pages does, so a production first load should be faster than this number.
+
+## Cycle 56 — JavaFX init thread
+
+Checked the App Lifecycle tip and cheat sheet. They read as if `init()` ran on the JavaFX Application Thread.
+
+Fix: the text now says `launch()` runs `init()` on the launcher thread, then `start` and `stop` on the JavaFX Application Thread, and that `init()` must not build a Scene or Stage.
+
+Verification: `validate-data.js` requires the launcher-thread sentence and no longer accepts the old sheet line.
+
+## Cycle 57 — finally
+
+Checked the Exceptions tip, which said `finally` always runs.
+
+Fix: it runs on the way out, including after a return, unless the process exits first. The sample's explanation now says finally prints C on the way out, which is what that snippet does.
+
+Verification: `validate-data.js` rejects `finally always runs`.
+
+## Cycle 58 — What comes after control flow
+
+Checked the Control Flow tip. It said arrays were the next lesson. The path is Control Flow, then Methods, then Arrays.
+
+Fix: the tip names Methods as next and arrays after that.
+
+Verification: `validate-data.js` rejects `arrays are the next lesson` and requires `Methods is the next lesson`.
+
+## Cycle 59 — A default arm on a sealed switch
+
+Checked the sealed-type bug exercise. It said the switch did not compile. On JDK 21 a switch that already covers Circle still compiles when a `default` arm is added. The arm is dead, and it hides a future `permits` change.
+
+Fix: the prompt asks for the arm that can never run. The correct line is still the `default`.
+
+Verification: `validate-data.js` requires the new explanation. The print snippet in that lesson still passes `validate-java.js`.
+
+## Cycle 60 — Interface methods
+
+Checked the Abstract vs Interface sheet line "Interface methods are public." Interfaces have been allowed private methods since Java 9. The Dog exercise is about the public `name()` method, and that part was already right.
+
+Fix: the sheet says methods an implementer must provide are public, and private methods stay inside the interface. The exercise why now says `Pet.name()` is public.
+
+Verification: `validate-data.js` requires the private-method sentence.
+
+## Cycle 61 — Unchecked Error
+
+Checked the Checked & Unchecked sheet. It said unchecked exceptions extend RuntimeException and stopped there. `Error` is also unchecked.
+
+Fix: the sheet says that, and still names NullPointerException and IllegalArgumentException as the unchecked exceptions learners meet.
+
+Verification: the sheet text is in `data.js` and `validate-data.js` still parses the lesson.
+
+## Cycle 62 — Sorting a list
+
+Checked the sort sheet, which said there is no zero-argument sort on a list. `List.sort()` does need a comparator. `Collections.sort(list)` is the zero-argument natural-order call, and an earlier lesson already uses it.
+
+Fix: the sheet and the fix-the-bug why name both `Collections.sort(list)` and `list.sort(Comparator.naturalOrder())`.
+
+Verification: `validate-data.js` rejects the old "no zero-argument sort" line.
+
+## Cycle 63 — Method references and Task progress
+
+Checked two sheet lines. "Method references are lambdas" overstates it. "succeed and the message property publish progress" names the wrong Task API. Progress is `updateProgress` / `progressProperty`. `messageProperty` is status text. The result is handled in `onSucceeded`.
+
+Fix: both sheet lines say that.
+
+Verification: `validate-data.js` requires `updateProgress and progressProperty report progress`.
+
+## Cycle 64 — Accessibility tree wording
+
+Checked Accessible CSS. The tip said both `display: none` and `visibility: hidden` leave the accessibility tree. The multiple-choice why said the same while the choices only included `display: none`. The sheet mentioned only `display: none`.
+
+Fix: the sheet matches the tip. The why now says that among the four choices, only `display: none` removes the element.
+
+Verification: `validate-data.js` requires that why and rejects the old parenthetical.
+
+## Cycle 65 — rem, sticky, and the paint pipeline
+
+Checked the responsive `rem` explanation, two interview `rem` explanations, the sticky choice, and the interview line "Parse, then layout, then paint."
+
+`em` is not simply "the element's own font size." On `font-size` it uses the parent. Sticky sticks inside its container, not the viewport. The pipeline includes the CSSOM, styles, and the render tree before layout.
+
+Fix: those sentences. The keyed answers did not change.
+
+Verification: `validate-data.js` requires the font-size sentence and rejects `own/parent font size`.
+
+## Cycle 66 — await and NavigationView
+
+Checked the Swift concurrency sheet ("await does not block the thread") and the SwiftUI navigation copy ("new code should not use it"). `await` suspends the task; the runtime may run other tasks on that thread. `NavigationView` is deprecated, not deleted.
+
+Fix: the sheet, the tip, and the multiple-choice why say that.
+
+Verification: `validate-data.js` requires `await suspends this task` and `NavigationView is deprecated`. `validate-swift.js` PASS, 42 snippets.
+
+## Cycle 67 — Repeated interview questions
+
+Checked the bank for the same snippet twice. Integer cache identity, a three-push stack peek, a discarded `concat`, and a `try?` fallback were copies of questions already in the bank or in a lesson.
+
+Fix: those four now ask about `Integer.valueOf(200)`, `substring`, `replace` leaving the original string, and `do/catch`. A validator rejects two interview items with the same type, prompt, code, and choices.
+
+Verification: `validate-data.js` PASS, interview=139, no duplicate. `validate-java.js` PASS, 175 snippets, including the new Java prints. `validate-swift.js` PASS, including the new `do/catch` print.
+
+## Cycle 68 — Print snippets after the wording edits
+
+Checked that the explanation edits did not change a keyed print answer.
+
+Found nothing wrong.
+
+Verification: `validate-java.js` PASS, 175 snippets, JDK 21. `validate-swift.js` PASS, 42 snippets, Swift 6.0.3.
+
+## Cycle 69 — Screens across themes
+
+Checked screenshots of home, the lesson intro, the first question, the shop, profile, and settings at 390×844 and 1280×800, light and dark. Measured the four track tabs.
+
+Phone tabs sit in a 2×2 grid inside x 16–374 of a 390px width. Desk tabs sit in one row inside x 300–825 of 1280px. Light and dark report the same boxes. Question screens use the same header, choices, and Check button in both themes. No layout change.
+
+Found one name clash: the avatar button and the Edit profile link were both named "Edit profile."
+
+Fix: the avatar's accessible name is "Change Ada's avatar" (using the profile name).
+
+Verification: the screenshots were taken on all four projects during this batch. `canceling profile edit keeps the previous daily goal` clicks the Edit profile link and PASS on all four projects. `body text and lesson labels meet contrast` PASS on all four projects.
+
+## Cycle 70 — Fifty lessons
+
+Checked 50 lessons back to back on the desk, with unlock-all so the path can cross Java, HTML & CSS, JavaFX, and Swift. Compared the Java home node count before and after, waited until the toast queue was empty, and read the JS heap after a garbage collection.
+
+Found 50 lessons recorded, 244 nodes before and 243 after, heap about 2.9 MB. No growing DOM and no leftover toast or confetti. No code change.
+
+Verification: `fifty lessons in a row leave the home screen the same size` PASS on `desk-light` (about 29s). Skipped on the other three projects so the suite does not run the soak four times. The final run logged `soak nodes 244 243 heap 2895620 lessons 50`.
+
+## Cycle 71 — Two tabs
+
+Checked a second tab opened on the same origin. It kept its own copy of the profile and a later save could replace the first tab's purchase.
+
+Fix: the profile blob has a `rev`. A `storage` event adopts a newer blob and redraws, unless a lesson is in progress. A save that sees a newer stored rev keeps that copy instead of writing over it. The redraw does not itself save, so the two tabs do not bounce revisions. Settings follow the same event for theme, sound, and text size.
+
+Verification: `a second tab keeps a purchase and a goal change from the other tab` PASS on all four projects. The second tab shows "1 streak freeze ready", then a goal of 50 XP, and the first tab keeps the freeze. The other tab's theme radio updates the first tab.
+
+## Cycle 72 — Import versus the stored revision
+
+Checked the hostile-backup test after the revision counter existed. The import was thrown away: the name stayed Ada. `save()` saw the on-disk `rev` and treated the backup as stale.
+
+Fix: before the import is written, its `rev` is raised to the copy already on disk, then `save()` stores the backup as the newer one.
+
+Verification: the full suite failed this test on all four projects (4 failed, 190 passed, 6 skipped). After the fix, `malformed backups are rejected and a hostile file cannot change the prototype` PASS on all four projects, and the suite below is green.
+
+## Cycle 73 — Cancel on the profile editor
+
+Checked Edit profile. Choosing Intense wrote `goal` on the live profile immediately. Cancel left that change in memory, and the next save kept it.
+
+Fix: the editor holds the goal locally and writes it on Save.
+
+Verification: `canceling profile edit keeps the previous daily goal` PASS on all four projects. After Cancel and a reload the goal is still 30.
+
+## Cycle 74 — Old save shapes
+
+Checked `migrateProgress` against the positional map from before lesson ids, and the `byteroots-v1` importer. The v1 path built the profile with `curriculum: 2`, so positional keys inside a v1 blob were never migrated.
+
+Fix: a v1 blob keeps its own curriculum stamp (usually absent), so hydration migrates it. The importer also keeps `misses` and `saved` when they are present.
+
+Verification:
+- `validate-data.js` walks every java, javafx, css, and swift key in that map, including review, miss, and saved exercise suffixes. Out-of-range and unknown keys stay. A partial unit does not open the gates. Curriculum 1 migrates. An empty object only receives the stamp. A second pass keeps the ids.
+- `legacy single-profile positional keys migrate` PASS on all four projects: the five old unit-1 keys become `java.types` through `java.arrays`, both gates open, and `css.flex`, `swift.strings`, and `fx.lists` keys move.
+- `old index saves migrate and keep the storage keys` and `legacy single-profile save becomes a profile` PASS on all four projects.
+
+Lessons added after that map (`java.run`, `java.memory`, `java.debug`, and the later branch lessons) have no positional key. They did not exist in that save.
+
+## Cycle 75 — Service worker cache v15
+
+Checked the precache name after this batch's script and text changes.
+
+Fix: `sw.js` uses `byteryte-v15`.
+
+Verification: `validate-static.js` PASS. The offline spec in cycle 54 PASS on all four projects.
+
+## Final verification
+
+`npm test` from `tests/` exited 0. Playwright reported 1.3m. The command that included a first pass of the hostile-backup test and then `npm test` took about 131s.
+
+- `validate-data.js` PASS, lessons=62, exercises=683, interview=139, fixes=62, outs=217
+- `validate-static.js` PASS
+- `validate-docs.js` PASS, 53 URLs
+- `validate-java.js` PASS, 175 snippets, JDK 21
+- `validate-swift.js` PASS, 42 snippets, Swift 6.0.3
+- `validate-ambiguity.js` PASS, arrange-duplicates=1
+- `validate-perf.js` PASS, bytes=333678, limit=400000
+- Playwright PASS, 194 passed, 6 skipped
+
+An earlier full run failed with 4 failed and 190 passed. All four were the hostile-backup test from cycle 72. That was fixed before this run.
+
+The 6 skips are `fifty lessons in a row` on the three projects other than `desk-light`, and `slow 4G and a 4x CPU` on the three projects other than `phone-light`.
+
+## Not covered in this batch, and why
+
+- A physical phone, a spoken audio check, and an installed home-screen icon were not available. Offline is a Playwright context set to offline. Standalone display mode is still the mocked media query from batch 2.
+- The slow-4G number is Chromium emulation against an uncompressed Python server. It is not a Lighthouse run and not GitHub Pages.
+- The 50-lesson soak is one desk project, then a heap snapshot. It is not a multi-hour session and not a native memory trace.
+- Tips, cheat sheets, and the interview bank were read for wrong or conflicting rules. Every Java and Swift print snippet was executed. Not every one of the 683 explanations was rewritten; the ones that were wrong are the cycles above.
+- Positional migration covers the keys that map existed for. Lessons added later have no old key.

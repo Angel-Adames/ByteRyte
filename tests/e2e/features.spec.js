@@ -1,5 +1,5 @@
 import { test, expect } from './console.js';
-import { boot, answerSession, state, isDeep, overflow } from './helpers.js';
+import { boot, answerSession, state, isDeep, overflow, themeOf } from './helpers.js';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -99,6 +99,7 @@ deep('shop buys every power-up and refuses an empty wallet', async ({ page, test
   expect(s.gems).toBe(400 - 30 - 50 - 20 - 25 - 40);
   expect(s.bought).toBe(5);
   await expect(page.getByRole('button', { name: /Heart refill: Full/ })).toBeDisabled();
+  await page.waitForTimeout(420);
   await page.getByRole('button', { name: /Streak freeze/ }).click();
   expect((await state(page)).freezes).toBe(2);
   expect((await state(page)).gems).toBe(400 - 30 - 50 - 20 - 25 - 40 - 50);
@@ -259,6 +260,44 @@ deep('legacy single-profile save becomes a profile', async ({ page, testInfo }) 
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   expect((await state(page)).xp).toBe(42);
   expect((await state(page)).streak).toBe(3);
+});
+
+deep('legacy single-profile positional keys migrate', async ({ page, testInfo }) => {
+  await page.addInitScript(({ theme }) => {
+    localStorage.removeItem('byteroots-profiles');
+    localStorage.setItem('byteroots-v1', JSON.stringify({
+      xp: 7, streak: 1, track: 'java', last: Date.now(),
+      done: { 'java-0-0': 1, 'java-0-1': 1, 'java-0-2': 1, 'java-0-3': 1, 'java-0-4': 1 },
+      review: { 'css-0-2-1': { box: 2 } },
+      misses: { 'swift-1-0': 4 },
+      saved: { 'javafx-1-2-3': 8 },
+    }));
+    localStorage.setItem('byteroots-settings', JSON.stringify({ theme, sound: false, big: false }));
+  }, themeOf(testInfo));
+  await page.goto('./');
+  await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
+  const s = await state(page);
+  expect(s.xp).toBe(7);
+  expect(s.curriculum).toBe(2);
+  expect(s.done).toEqual(expect.arrayContaining(['java.types', 'java.strings', 'java.control', 'java.methods', 'java.arrays']));
+  expect(s.done).not.toContain('java.run');
+  expect(s.gates.css).toBe(true);
+  expect(s.gates.javafx).toBe(true);
+  expect(s.review['css.flex~1'].box).toBe(2);
+  expect(s.misses['swift.strings']).toBe(4);
+  expect(s.saved['fx.lists~3']).toBe(8);
+});
+
+deep('canceling profile edit keeps the previous daily goal', async ({ page, testInfo }) => {
+  await boot(page, testInfo, { profile: { goal: 30 } });
+  await page.getByRole('button', { name: 'Profile', exact: true }).click();
+  await page.locator('#edit2').click();
+  await page.getByRole('button', { name: /Intense/ }).click();
+  await page.getByRole('button', { name: 'Cancel' }).click();
+  expect((await state(page)).goal).toBe(30);
+  await page.reload();
+  await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
+  expect((await state(page)).goal).toBe(30);
 });
 
 deep('profiles can be created, switched, and deleted', async ({ page, testInfo }) => {

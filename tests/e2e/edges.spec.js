@@ -172,6 +172,20 @@ test('a full disk shows a save error instead of a page error', async ({ page }, 
   expect(stored).toBe(0);
 });
 
+test('a freeze click a moment later does not buy a second one', async ({ page }, testInfo) => {
+  await boot(page, testInfo, { profile: { gems: 400, freezes: 0 } });
+  await page.getByRole('button', { name: 'Shop', exact: true }).click();
+  await page.locator('.buy[data-id="freeze"]').click();
+  await page.waitForTimeout(150);
+  await page.evaluate(() => document.querySelector('.buy[data-id="freeze"]').click());
+  expect((await state(page)).freezes).toBe(1);
+  expect((await state(page)).gems).toBe(350);
+  await page.waitForTimeout(420);
+  await page.locator('.buy[data-id="freeze"]').click();
+  expect((await state(page)).freezes).toBe(2);
+  expect((await state(page)).gems).toBe(300);
+});
+
 test('rapid double taps buy, add, answer, and toggle once', async ({ page }, testInfo) => {
   await boot(page, testInfo, { profile: { gems: 400, freezes: 0 } });
   await page.getByRole('button', { name: 'Shop', exact: true }).click();

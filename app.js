@@ -14,7 +14,7 @@ const readStore=k=>{try{const t=localStorage.getItem(k);return t?JSON.parse(t):n
 let G=Object.assign({theme:'system',sound:true,big:false},readStore(GK)||{});
 let P=readStore(PK);
 if(!P||typeof P!=='object'||Array.isArray(P)){P={active:null,list:{}};const old=readStore('byteroots-v1');
-  if(old){const p=Object.assign(NEWP(),{xp:old.xp||0,streak:old.streak||0,done:old.done||{},review:old.review||{},track:old.track||'java',onboarded:true});
+  if(old&&typeof old==='object'&&!Array.isArray(old)){const p=Object.assign(NEWP(),{xp:old.xp||0,streak:old.streak||0,done:old.done||{},review:old.review||{},misses:old.misses||{},saved:old.saved||{},track:old.track||'java',onboarded:true,curriculum:old.curriculum});
     if(old.last){const d=new Date(old.last);if(!isNaN(d))p.last=iso(d)}p.best=p.streak;P.list[p.id]=p;P.active=p.id}}
 let S;
 function finite(v,d,min,max){const n=Number(v);if(!Number.isFinite(n))return d;let x=n;if(min!=null&&x<min)x=min;if(max!=null&&x>max)x=max;return x}
@@ -67,7 +67,20 @@ function hydrate(){
 hydrate();
 function writeStore(k,v){try{localStorage.setItem(k,v);return true}catch(e){toast('This browser blocked saving. Free some space and try again.');return false}}
 const saveG=()=>writeStore(GK,JSON.stringify(G));
-const save=()=>{if(S)P.list[S.id]=S;return writeStore(PK,JSON.stringify(P))};
+let syncing=false;
+const save=()=>{
+  if(syncing)return true;
+  if(S)P.list[S.id]=S;
+  const latest=readStore(PK);
+  if(latest&&typeof latest==='object'&&!Array.isArray(latest)&&(latest.rev||0)>(P.rev||0)){
+    P=latest;hydrate();
+    toast('Another tab saved newer progress. This tab is showing that copy.');
+    if(!R){const n=cur||'learn';cur='';show(n)}
+    return false;
+  }
+  P.rev=(P.rev||0)+1;
+  return writeStore(PK,JSON.stringify(P));
+};
 const HREG=30*60*1000;
 function regen(){if(S.hearts>=5){S.heartAt=null;return}if(!S.heartAt){S.heartAt=Date.now();return}const n=Math.floor((Date.now()-S.heartAt)/HREG);if(n>0){S.hearts=Math.min(5,S.hearts+n);S.heartAt=S.hearts>=5?null:S.heartAt+n*HREG;save()}}
 function nextHeart(){if(S.hearts>=5||!S.heartAt)return '';const m=Math.max(1,Math.ceil((S.heartAt+HREG-Date.now())/60000));return `${m} min`}
@@ -286,16 +299,16 @@ function shop(){cur='shop';daily();
   <div class="inv">Your stuff: ✂️ ${S.inv.fifty||0} · ⏭️ ${S.inv.skip||0} · 🧊 ${S.freezes}/2 ${dblOn()?'· ⚡ active':''}</div>
   ${ITEMS.map(([id,ic,n,d,c,ok])=>{const ready=ok()&&S.gems>=c;const label=!ok()?(id==='hearts'?'Full':'Max'):S.gems<c?`Need ${c-S.gems}`:`💎 ${c}`;return `<div class="sitem"><span class="pic">${ic}</span><div><b>${n}</b><small>${d}</small></div><button class="btn sm buy" data-id="${id}" ${ready?'':'disabled'} aria-label="${esc(n)}: ${label}">${label}</button></div>`}).join('')}
   <h2 class="h2">How to earn gems</h2><ul class="muted earn"><li>Finish a lesson: +5 (perfect lesson: +10)</li><li>Hit your daily goal: +10</li><li>Every 7-day streak: +20</li><li>Mock interview: +2 per correct answer</li><li>Speed challenge: +1 per correct answer</li></ul>`);
-  $$('.buy').forEach(b=>b.onclick=()=>{const it=ITEMS.find(x=>x[0]===b.dataset.id);if(!it||S.gems<it[4]||!it[5]()||buyLock[it[0]])return;buyLock[it[0]]=true;queueMicrotask(()=>{buyLock[it[0]]=false});S.gems-=it[4];it[6]();S.stats.bought=(S.stats.bought||0)+1;sfx.coin();buzz(20);toast(`${it[1]} ${it[2]} purchased!`);checkBadges();save();shop()})}
+  $$('.buy').forEach(b=>b.onclick=()=>{const it=ITEMS.find(x=>x[0]===b.dataset.id);const now=Date.now();if(!it||S.gems<it[4]||!it[5]()||now-(buyAt[it[0]]||0)<400)return;buyAt[it[0]]=now;S.gems-=it[4];it[6]();S.stats.bought=(S.stats.bought||0)+1;sfx.coin();buzz(20);toast(`${it[1]} ${it[2]} purchased!`);checkBadges();save();shop()})}
 // ---------- profile ----------
-const buyLock={},tapLock={};let addLock=false;
+const buyAt={},tapLock={};let addLock=false;
 function profile(){cur='profile';daily();
   const days=[...Array(7)].map((_,i)=>shiftDay(-(6-i))),mx=Math.max(S.goal,...days.map(d=>S.xpLog[d]||0));
   const week=d=>[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[shiftDay(-(i+d))]||0),0),tw=week(0),lw=week(7);
   const dow=new Date().getDay(),cal=[...Array(35)].map((_,i)=>{const off=dow+28-i;return off<0?null:shiftDay(-off)}).slice(0);const lv=level();
   const acc=S.stats.answered?Math.round(S.stats.correct/S.stats.answered*100):0;
   const others=Object.values(P.list).filter(p=>p.id!==S.id);
-  shell(`<section class="phead"><button class="avatar big" id="edit" aria-label="Edit profile">${esc(S.avatar)}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small><br><button class="link" id="edit2">Edit profile</button></div></section>
+  shell(`<section class="phead"><button class="avatar big" id="edit" aria-label="Change ${esc(S.name)}'s avatar">${esc(S.avatar)}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small><br><button class="link" id="edit2">Edit profile</button></div></section>
   <div class="lvl"><div class="row"><b>Level ${lv.L}</b><small class="muted">${lv.need-lv.into} XP to level ${lv.L+1}</small></div><div class="bar"><i style="width:${lv.into/lv.need*100}%"></i></div></div>
   <div class="sgrid"><div class="scard">🔥<b>${S.streak}</b>Day streak</div><div class="scard">🏆<b>${S.best}</b>Best streak</div><div class="scard">⚡<b>${S.xp}</b>Total XP</div><div class="scard">💎<b>${S.gems}</b>Gems</div><div class="scard">📚<b>${S.stats.lessons}</b>Lessons</div><div class="scard">🎯<b>${acc}%</b>Accuracy</div></div>
   <button class="pcard" id="recap"><span class="pic">📅</span><span><b>Weekly recap</b><small>Your last 7 days at a glance</small></span></button>
@@ -328,8 +341,9 @@ function editProfile(isNew){let av=S.avatar;histPush({screen:'edit',fresh:!!isNe
   <div class="lbl">Daily goal</div><div class="goals">${[[10,'Casual'],[30,'Regular'],[50,'Serious'],[100,'Intense']].map(([g,n])=>`<button class="opt goal ${S.goal===g?'sel':''}" data-g="${g}"><b>${n}</b> · ${g} XP/day</button>`).join('')}</div>
   ${isNew?`<button class="btn" id="sv">Start from scratch</button><button class="btn alt" id="pl" style="margin-top:12px">Take placement test (skip the Java language drill)</button>`:`<button class="btn" id="sv">Save</button>${Object.keys(P.list).length>1?'<button class="btn red" id="del" style="margin-top:12px">Delete this profile</button>':''}<button class="btn alt" id="cx" style="margin-top:12px">Cancel</button>`}</main>`;
   $$('.avs .avatar').forEach(b=>b.onclick=()=>{av=b.dataset.a;$$('.avs .avatar').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-checked',x===b)})});
-  $$('.goal').forEach(b=>b.onclick=()=>{S.goal=+b.dataset.g;$$('.goal').forEach(x=>x.classList.toggle('sel',x===b))});
-  const commit=()=>{S.name=($('#nm').value.trim()||'Learner').slice(0,24);S.avatar=av;S.onboarded=true;save()};
+  let goal=S.goal;
+  $$('.goal').forEach(b=>b.onclick=()=>{goal=+b.dataset.g;$$('.goal').forEach(x=>x.classList.toggle('sel',x.dataset.g===String(goal)))});
+  const commit=()=>{S.name=($('#nm').value.trim()||'Learner').slice(0,24);S.avatar=av;S.goal=goal;S.onboarded=true;save()};
   $('#sv').onclick=()=>{if(!once($('#sv')))return;commit();if(isNew)land('learn');else navBack(profile)};
   $('#cx')&&($('#cx').onclick=()=>{if(!once($('#cx')))return;navBack(profile)});
   $('#pl')&&($('#pl').onclick=()=>{if(!once($('#pl')))return;commit();try{history.replaceState({br:1,screen:'learn'},'')}catch(e){}cur='learn';const pool=[];lessons(T('java')).filter(x=>DRILL.includes(x.key)).forEach(x=>{const e=x.l.ex.filter(e=>e.t!=='ar');pool.push(...shuffle(e).slice(0,2).map((e)=>({e,k:x.key+'~'+x.l.ex.indexOf(e)})))});start(pool,{name:'Placement test',mode:'placement'})});
@@ -354,7 +368,7 @@ function settings(){cur='settings';daily();
   $('#ua').onclick=()=>{if(!tap('unlock'))return;S.unlockAll=!S.unlockAll;save();settings()};
   $$('[data-g]').forEach(b=>b.onclick=()=>{if(!tap('goal'))return;S.goal=+b.dataset.g;save();settings()});
   $('#exp').onclick=()=>{const blob=new Blob([JSON.stringify({app:'ByteRyte',v:2,profiles:P,settings:G},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`byteroots-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
-  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
+  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}const prev=readStore(PK);P.rev=Math.max(P.rev||0,prev&&prev.rev||0);save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
   $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;S=n;save();land('learn')}};
 }
 // ---------- lesson engine ----------
@@ -471,5 +485,18 @@ daily();
 armHistory();
 addEventListener('popstate',onPop);
 histLock=true;restore(history.state);histLock=false;
+addEventListener('storage',e=>{
+  if(e.key===GK&&e.newValue){
+    try{const g=JSON.parse(e.newValue);if(g&&typeof g==='object'&&!Array.isArray(g)){G=Object.assign({theme:'system',sound:true,big:false},g);applyTheme()}}catch(err){}
+    return;
+  }
+  if(e.key!==PK||!e.newValue)return;
+  let next;try{next=JSON.parse(e.newValue)}catch(err){return}
+  if(!next||typeof next!=='object'||Array.isArray(next)||(next.rev||0)<=(P.rev||0))return;
+  const busy=!!R;
+  syncing=true;
+  try{P=next;hydrate();if(!busy){const n=cur||'learn';cur='';show(n)}}
+  finally{syncing=false}
+});
 window.__BR={get S(){return S},P:()=>P,cur:()=>R&&R.q[0]&&R.q[0].e};
 })();
