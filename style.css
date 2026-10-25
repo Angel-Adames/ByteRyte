@@ -217,4 +217,10 @@ main,.tip,.q,.sheet,.gcard,.opt,.toast,.card{overflow-wrap:anywhere;word-break:n
 [data-theme=dark] .node.done{outline-color:#92400e}
 [data-theme=dark] .finish .card.xp{background:color-mix(in srgb,#78350f 45%,var(--card))}
 [data-theme=dark] .finish .card.gem{background:color-mix(in srgb,#0c4a6e 50%,var(--card))}
+[data-theme=dark] .opt.code{background:#020617;color:#e2e8f0}
+[data-theme=dark] .opt.code.sel{background:#0c2a3f;color:#e2e8f0}
+[data-theme=dark] .opt.code.right{background:#052e16;color:#ecfdf5}
+[data-theme=dark] .opt.code.wrong{background:#3f1214;color:#fee2e2}
+[data-theme=dark] .fixnote{color:#fecaca}
+.boot small{max-width:280px;text-align:center;line-height:1.45}
 @media(max-width:420px){.finish .card b{font-size:20px}.nlab{max-width:128px}}

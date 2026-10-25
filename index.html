@@ -6,7 +6,8 @@
 <meta name="apple-mobile-web-app-title" content="ByteRyte"><meta name="apple-mobile-web-app-status-bar-style" content="default">
 <link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icons/icon.svg"><link rel="apple-touch-icon" href="icons/icon-180.png">
 <link rel="stylesheet" href="style.css">
-</head><body><div id="app"><div class="boot" role="status" aria-live="polite"><span aria-hidden="true">🌱</span><b>ByteRyte</b><small>Loading your path…</small></div></div>
+</head><body><div id="app"><div class="boot" role="status" aria-live="polite"><span aria-hidden="true">🌱</span><b>ByteRyte</b><small>Getting your lessons ready…</small></div></div>
 <script src="data.js"></script><script src="interview.js"></script><script src="app.js"></script>
 <script>if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js');</script>
+<script>setTimeout(()=>{const b=document.querySelector('.boot');if(!b)return;b.innerHTML='<span aria-hidden="true">🌱</span><b>ByteRyte</b><small>Still starting. Reload the page. If you are offline, open ByteRyte once while you have a connection so this device can keep a copy.</small>';},8000);</script>
 </body></html>
