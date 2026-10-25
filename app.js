@@ -33,6 +33,7 @@ function sanitize(p){
   p.name=String(p.name==null?'Learner':p.name).replace(/[\u0000-\u001f]/g,'').trim().slice(0,24)||'Learner';
   p.avatar=String(p.avatar==null?'🦊':p.avatar).replace(/[\u0000-\u001f]/g,'').slice(0,32)||'🦊';
   if(!Number.isFinite(Number(p.created)))p.created=Date.now();else p.created=Number(p.created);
+  p.gen=Math.round(finite(p.gen,0,0,1e9));
   p.inv=p.inv&&typeof p.inv==='object'?p.inv:{};
   p.inv.fifty=Math.round(finite(p.inv.fifty,0,0,999));
   p.inv.skip=Math.round(finite(p.inv.skip,0,0,999));
@@ -104,7 +105,7 @@ const econBases={};
 function econSnap(p){return {gems:p.gems,hearts:p.hearts,freezes:p.freezes||0,fifty:(p.inv&&p.inv.fifty)||0,skip:(p.inv&&p.inv.skip)||0,doubleUntil:p.doubleUntil||0,goal:p.goal,goalDay:p.goalDay??null,heartAt:p.heartAt??null,heartDay:p.heartDay??null,bought:(p.stats&&p.stats.bought)||0}}
 const progBases={};
 function copyMap(o){const out={};if(o&&typeof o==='object'&&!Array.isArray(o))Object.keys(o).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;out[k]=o[k]});return out}
-function progSnap(p){const st=p.stats||{},q=p.qd&&typeof p.qd==='object'?p.qd:{};return {xp:p.xp||0,streak:p.streak||0,best:p.best||0,last:p.last??null,lessons:st.lessons||0,perfect:st.perfect||0,xpLog:copyMap(p.xpLog),done:copyMap(p.done),misses:copyMap(p.misses),badges:copyMap(p.badges),qday:q.day||null,qp:copyMap(q.p),qclaimed:copyMap(q.claimed),qchest:!!q.chest}}
+function progSnap(p){const st=p.stats||{},q=p.qd&&typeof p.qd==='object'?p.qd:{};return {xp:p.xp||0,streak:p.streak||0,best:p.best||0,last:p.last??null,lessons:st.lessons||0,perfect:st.perfect||0,xpLog:copyMap(p.xpLog),done:copyMap(p.done),misses:copyMap(p.misses),badges:copyMap(p.badges),review:copyMap(p.review),qday:q.day||null,qp:copyMap(q.p),qclaimed:copyMap(q.claimed),qchest:!!q.chest,gen:p.gen||0}}
 function rememberEcon(p){if(p&&p.id){econBases[p.id]=econSnap(p);progBases[p.id]=progSnap(p)}}
 function rememberAll(){Object.keys(econBases).forEach(k=>delete econBases[k]);Object.keys(progBases).forEach(k=>delete progBases[k]);Object.values(P.list||{}).forEach(rememberEcon)}
 function mergeEcon(mine,remote,base){
@@ -126,32 +127,69 @@ function mergeEcon(mine,remote,base){
 }
 function mergeProg(mine,remote,base){
   const add=(r,m,b,lo,hi)=>Math.max(lo,Math.min(hi,Math.round((r||0)+((m||0)-(b||0)))));
+  const bad=k=>k==='__proto__'||k==='constructor'||k==='prototype';
+  const bumped=(remote.gen||0)>(base.gen||0);
   mine.xp=add(remote.xp,mine.xp,base.xp,0,1e9);
   const days=new Set([...Object.keys(base.xpLog||{}),...Object.keys(remote.xpLog||{}),...Object.keys(mine.xpLog||{})]);
-  mine.xpLog=copyMap(mine.xpLog);
-  days.forEach(d=>{const v=add(remote.xpLog&&remote.xpLog[d],mine.xpLog[d],base.xpLog&&base.xpLog[d],0,1e9);if(v)mine.xpLog[d]=v;else delete mine.xpLog[d]});
-  mine.done=copyMap(mine.done);
-  Object.keys(remote.done||{}).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;if(remote.done[k])mine.done[k]=true});
+  const mineLog=copyMap(mine.xpLog);
+  mine.xpLog={};
+  days.forEach(d=>{const v=add(remote.xpLog&&remote.xpLog[d],mineLog[d],base.xpLog&&base.xpLog[d],0,1e9);if(v)mine.xpLog[d]=v});
+  const mineDone=copyMap(mine.done);
+  if(bumped){
+    mine.done=copyMap(remote.done);
+    Object.keys(mineDone).forEach(k=>{if(bad(k))return;if(mineDone[k]&&!(base.done&&base.done[k]))mine.done[k]=true});
+  }else{
+    mine.done=mineDone;
+    Object.keys(remote.done||{}).forEach(k=>{if(bad(k))return;if(remote.done[k])mine.done[k]=true});
+  }
   const mk=new Set([...Object.keys(base.misses||{}),...Object.keys(remote.misses||{}),...Object.keys(mine.misses||{})]);
-  mine.misses=copyMap(mine.misses);
-  mk.forEach(k=>{const v=add(remote.misses&&remote.misses[k],mine.misses[k],base.misses&&base.misses[k],0,1e9);if(v)mine.misses[k]=v;else delete mine.misses[k]});
+  const mineMiss=copyMap(mine.misses);
+  mine.misses={};
+  mk.forEach(k=>{const v=add(remote.misses&&remote.misses[k],mineMiss[k],base.misses&&base.misses[k],0,1e9);if(v)mine.misses[k]=v});
   if(!mine.stats||typeof mine.stats!=='object')mine.stats={};
   mine.stats.lessons=add(remote.stats&&remote.stats.lessons,mine.stats.lessons,base.lessons,0,1e9);
   mine.stats.perfect=add(remote.stats&&remote.stats.perfect,mine.stats.perfect,base.perfect,0,1e9);
   if(mine.streak===base.streak&&(mine.last??null)===(base.last??null)){mine.streak=remote.streak||0;mine.last=remote.last??null;mine.best=Math.max(mine.best||0,remote.best||0)}
   else{const rl=remote.last??null,ml=mine.last??null,last=!ml?rl:!rl?ml:(ml>=rl?ml:rl);if(last&&last===ml&&last===rl)mine.streak=Math.max(mine.streak||0,remote.streak||0);else if(last===rl)mine.streak=remote.streak||0;mine.last=last;mine.best=Math.max(mine.best||0,remote.best||0,mine.streak||0)}
-  mine.review=mine.review&&typeof mine.review==='object'&&!Array.isArray(mine.review)?mine.review:{};
-  Object.keys(remote.review||{}).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;if(!mine.review[k])mine.review[k]=remote.review[k]});
-  mine.badges=copyMap(mine.badges);
-  Object.keys(remote.badges||{}).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;if(!mine.badges[k])mine.badges[k]=remote.badges[k]});
-  if(mine.qd&&remote.qd&&mine.qd.day&&mine.qd.day===remote.qd.day&&mine.qd.day===base.qday){
+  const mineReview=copyMap(mine.review);
+  if(bumped){
+    mine.review=copyMap(remote.review);
+    Object.keys(mineReview).forEach(k=>{if(bad(k))return;if(mineReview[k]&&!(base.review&&base.review[k]))mine.review[k]=mineReview[k]});
+  }else{
+    mine.review=mineReview;
+    Object.keys(remote.review||{}).forEach(k=>{if(bad(k))return;if(!mine.review[k])mine.review[k]=remote.review[k]});
+  }
+  const mineBadges=copyMap(mine.badges);
+  if(bumped){
+    mine.badges=copyMap(remote.badges);
+    Object.keys(mineBadges).forEach(k=>{if(bad(k))return;if(mineBadges[k]&&!(base.badges&&base.badges[k]))mine.badges[k]=mineBadges[k]});
+  }else{
+    mine.badges=mineBadges;
+    Object.keys(remote.badges||{}).forEach(k=>{if(bad(k))return;if(!mine.badges[k])mine.badges[k]=remote.badges[k]});
+  }
+  const takeQ=q=>({day:q.day,ids:q.ids.slice(),p:copyMap(q.p),claimed:copyMap(q.claimed),chest:!!q.chest});
+  if(bumped){
+    if(remote.qd&&remote.qd.day){
+      const mineQ=mine.qd;
+      mine.qd=takeQ(remote.qd);
+      if(mineQ&&mineQ.day===remote.qd.day&&mineQ.day===base.qday){
+        Object.keys(mineQ.p||{}).forEach(k=>{const delta=(mineQ.p[k]||0)-((base.qp&&base.qp[k])||0);if(delta>0)mine.qd.p[k]=Math.min(1e9,(mine.qd.p[k]||0)+delta)});
+        Object.keys(mineQ.claimed||{}).forEach(k=>{if(bad(k))return;if(mineQ.claimed[k]&&!(base.qclaimed&&base.qclaimed[k]))mine.qd.claimed[k]=1});
+        if(mineQ.chest&&!base.qchest)mine.qd.chest=true;
+      }
+    }else delete mine.qd;
+  }else if(mine.qd&&remote.qd&&remote.qd.day&&mine.qd.day&&remote.qd.day>mine.qd.day){
+    mine.qd=takeQ(remote.qd);
+  }else if(mine.qd&&remote.qd&&mine.qd.day&&mine.qd.day===remote.qd.day&&mine.qd.day===base.qday){
     const qk=new Set([...Object.keys(base.qp||{}),...Object.keys(remote.qd.p||{}),...Object.keys(mine.qd.p||{})]);
-    mine.qd.p=copyMap(mine.qd.p);
-    qk.forEach(k=>{const v=add(remote.qd.p&&remote.qd.p[k],mine.qd.p[k],base.qp&&base.qp[k],0,1e9);if(v)mine.qd.p[k]=v;else delete mine.qd.p[k]});
+    const mineP=copyMap(mine.qd.p);
+    mine.qd.p={};
+    qk.forEach(k=>{const v=add(remote.qd.p&&remote.qd.p[k],mineP[k],base.qp&&base.qp[k],0,1e9);if(v)mine.qd.p[k]=v});
     mine.qd.claimed=copyMap(mine.qd.claimed);
     Object.keys(remote.qd.claimed||{}).forEach(k=>{if(remote.qd.claimed[k])mine.qd.claimed[k]=1});
     if(remote.qd.chest||base.qchest)mine.qd.chest=true;
   }
+  mine.gen=Math.max(mine.gen||0,remote.gen||0);
   sanitize(mine);
 }
 hydrate();
@@ -477,8 +515,8 @@ function settings(){cur='settings';daily();
   $('#ua').onclick=()=>{if(!tap('unlock'))return;S.unlockAll=!S.unlockAll;save();settings()};
   $$('[data-g]').forEach(b=>b.onclick=()=>{if(!tap('goal'))return;S.goal=+b.dataset.g;save();settings()});
   $('#exp').onclick=()=>{const blob=new Blob([JSON.stringify({app:'ByteRyte',v:2,profiles:P,settings:G},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`byteroots-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
-  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();rememberAll();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}const prev=readStore(PK);P.rev=Math.max(P.rev||0,prev&&prev.rev||0);save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
-  $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;S=n;save();land('learn')}};
+  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();Object.keys(P.list).forEach(id=>{if(P.list[id])P.list[id].gen=(P.list[id].gen||0)+1});rememberAll();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}const prev=readStore(PK);P.rev=Math.max(P.rev||0,prev&&prev.rev||0);save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
+  $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;n.gen=(S.gen||0)+1;S=n;save();land('learn')}};
 }
 // ---------- lesson engine ----------
 let R,timerId,heartWatch;

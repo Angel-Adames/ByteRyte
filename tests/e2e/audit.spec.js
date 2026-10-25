@@ -224,6 +224,90 @@ test('doubleUntil on the 30-day line stays and one 15-minute step past it clears
   await other.close();
 });
 
+test('a lesson tab does not restore progress the other tab reset', async ({ page }, testInfo) => {
+  await boot(page, testInfo, {
+    profile: {
+      name: 'Ada', xp: 80, streak: 2, best: 2,
+      done: { 'java.run': true },
+      badges: { first: 1 },
+      stats: { lessons: 1, answered: 8, correct: 8 },
+    },
+  });
+  const other = await page.context().newPage();
+  other.on('dialog', (d) => d.accept());
+  await other.goto(page.url());
+  await expect(other.getByText('Daily goal', { exact: true })).toBeVisible();
+  await revsMatch(page, other);
+  await page.locator('.node.cur').click();
+  await page.getByRole('button', { name: 'Start lesson' }).click();
+  await expect(page.locator('#chk')).toBeVisible();
+  await other.getByRole('button', { name: 'Settings', exact: true }).click();
+  await other.getByRole('button', { name: "Reset Ada's progress" }).click();
+  await expect(other.getByText('Daily goal', { exact: true })).toBeVisible();
+  const cleared = await other.evaluate(() => {
+    const row = JSON.parse(localStorage.getItem('byteroots-profiles')).list.ptest;
+    return { xp: row.xp, done: !!row.done['java.run'], badges: Object.keys(row.badges || {}), name: row.name };
+  });
+  expect(cleared.done).toBe(false);
+  expect(cleared.xp).toBe(0);
+  expect(cleared.badges).toEqual([]);
+  expect(cleared.name).toBe('Ada');
+  await answerOne(page);
+  const stored = await page.evaluate(() => {
+    const row = JSON.parse(localStorage.getItem('byteroots-profiles')).list.ptest;
+    return { xp: row.xp, done: !!row.done['java.run'], badges: Object.keys(row.badges || {}), name: row.name, gen: row.gen || 0 };
+  });
+  expect(stored.name).toBe('Ada');
+  expect(stored.done).toBe(false);
+  expect(stored.xp).toBe(0);
+  expect(stored.badges).toEqual([]);
+  expect(stored.gen).toBeGreaterThan(0);
+  await other.close();
+});
+
+test('a newer quest day from the other tab replaces a stale quest day', async ({ page }, testInfo) => {
+  await boot(page, testInfo, { profile: { name: 'Ada' } });
+  const other = await page.context().newPage();
+  await other.goto(page.url());
+  await expect(other.getByText('Daily goal', { exact: true })).toBeVisible();
+  await revsMatch(page, other);
+  await page.locator('.node.cur').click();
+  await page.getByRole('button', { name: 'Start lesson' }).click();
+  await expect(page.locator('#chk')).toBeVisible();
+  const planted = await other.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem('byteroots-profiles'));
+    const row = raw.list.ptest;
+    row.qd.day = '2099-06-01';
+    row.qd.p = { lessons: 1 };
+    raw.rev = (raw.rev || 0) + 1;
+    localStorage.setItem('byteroots-profiles', JSON.stringify(raw));
+    return row.qd.day;
+  });
+  await page.evaluate(() => {
+    const q = window.__BR.S.qd;
+    q.day = '2020-01-01';
+    q.p = { lessons: 9 };
+  });
+  const picked = await page.evaluate(() => {
+    const e = window.__BR.cur();
+    const opts = [...document.querySelectorAll('.opt')].filter((o) => !o.disabled);
+    const hit = opts.find((o) => o.dataset.i !== String(e.a));
+    if (!hit) return -1;
+    return opts.indexOf(hit);
+  });
+  expect(picked).toBeGreaterThanOrEqual(0);
+  await page.keyboard.press(String(picked + 1));
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#cont')).toBeVisible();
+  const stored = await page.evaluate(() => {
+    const q = JSON.parse(localStorage.getItem('byteroots-profiles')).list.ptest.qd;
+    return { day: q && q.day, lessons: (q && q.p && q.p.lessons) || 0 };
+  });
+  expect(stored.day).toBe(planted);
+  expect(stored.lessons).toBe(1);
+  await other.close();
+});
+
 test('an offline failed script fetch is not answered with the page HTML', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
