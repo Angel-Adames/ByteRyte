@@ -12,7 +12,7 @@ npm test
 `npm test` runs, in order:
 
 1. `validate-data.js` — every lesson and interview exercise has a known type, a correct index in range, no duplicate choices, and a real explanation. It also checks that old `java-0-0` style progress keys migrate to stable lesson ids.
-2. `validate-static.js` — storage keys stay `byteroots-profiles` and `byteroots-settings`, paths stay relative, the service worker cache is `byteryte-v16`, the page has no inline script, and the copy does not claim outside review or a paid gem.
+2. `validate-static.js` — storage keys stay `byteroots-profiles` and `byteroots-settings`, paths stay relative, the service worker cache is `byteryte-v17`, the page has no inline script, and the copy does not claim outside review or a paid gem.
 3. `validate-docs.js` — every lesson and interview topic has an official docs URL, and each URL returns HTTP 200.
 4. `validate-java.js` — every Java “what does this print?” snippet is compiled and run with `javac --release 21`.
 5. `validate-swift.js` — the same for Swift, using `SWIFT` if set, otherwise `/tmp/swift/swift-6.0.3-RELEASE-ubuntu24.04/usr/bin/swift`. If no toolchain is installed the script skips and says so.

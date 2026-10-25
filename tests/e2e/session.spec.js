@@ -15,7 +15,7 @@ test('a second tab keeps a purchase and a goal change from the other tab', async
   await page.getByRole('button', { name: /Streak freeze/ }).click();
   await expect(other.getByText('1 streak freeze ready')).toBeVisible();
   await other.getByRole('button', { name: 'Settings' }).click();
-  await other.getByRole('button', { name: '50 XP' }).click();
+  await other.getByRole('radio', { name: '50 XP' }).click();
   await expect.poll(() => page.evaluate(() => window.__BR.S.goal)).toBe(50);
   expect(await page.evaluate(() => window.__BR.S.freezes)).toBe(1);
   const stored = await page.evaluate(() => {

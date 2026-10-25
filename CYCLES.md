@@ -979,3 +979,237 @@ The four soak logs are `soak nodes 244 243` with heaps 2899164, 2899288, 2903960
   - Swift validation skips, and says so, if the Swift toolchain is absent.
   - Lessons added after the positional map have no old key.
   - `style-src` still allows inline style attributes, because the page sets width, height, and color that way. Script sources do not allow inline scripts.
+
+# Review cycles 101–125
+
+Batch 1 of the next hundred. Branched from `origin/main` at `02f3957`. Each cycle names what was checked, what was found, what changed, and the test that proved the result. A cycle that found no defect says so.
+
+Playwright runs on all four projects: `phone-light` (390×844), `phone-dark`, `desk-light` (1280×800), and `desk-dark`. The config already sets reduced motion. New cases live in `tests/e2e/fresh.spec.js`.
+
+## Cycle 101 — Scanner before the strings bug
+
+Read the Java strings lesson as a first explanation of input. The bug exercise used `scanner.nextLine()` and compared the result with `==`. The sheet never said what a Scanner is.
+
+Fix: the sheet says `Scanner scanner = new Scanner(System.in)` reads typed text and `nextLine()` returns one new String, so the comparison is `equals`. The bug explanation starts with the same two sentences.
+
+Verification: `validate-data.js` requires that Scanner sentence. PASS in the combined run.
+
+## Cycle 102 — Hash codes before Maps
+
+Read the `hashCode` explanation in the references lesson. It said HashMap and HashSet will misbehave. Maps & Sets is a later unit.
+
+Fix: the explanation says equal objects need equal hash codes, and that hash-based collections, taught in Maps & Sets, look a key up by that code.
+
+Verification: `validate-data.js` requires the Maps & Sets sentence and rejects `HashMap/HashSet will misbehave`. PASS.
+
+## Cycle 103 — Big-O after the lookup is named
+
+Read the maps question about a taken username. The explanation used O(1) and O(n). The Big-O lesson is Unit 5, after maps.
+
+Fix: the explanation says a HashSet lookup is usually direct and an ArrayList walks every element, and that the Big-O lesson names those O(1) and O(n). The Big-O lesson still uses the notation in its own choices.
+
+Verification: `validate-data.js` requires that sentence and rejects `HashSet.contains is O(1) on average vs O(n) for a list.` PASS.
+
+## Cycle 104 — Pattern matching after the cast
+
+Read the inheritance question about calling `purr()` on an Animal variable. The explanation offered pattern matching. Pattern matching is taught in Modern Java, after inheritance.
+
+Fix: the explanation says the declared type decides what compiles, shows the cast `((Cat) a).purr()`, and says Modern Java writes the test and the cast as `instanceof Cat c`.
+
+Verification: `validate-data.js` requires the Modern Java sentence and rejects `or use pattern matching.` PASS.
+
+## Cycle 105 — Queues before the interview uses them
+
+Read the lists lesson, then the interview questions that use ArrayDeque and PriorityQueue. The lesson drilled ArrayList and did not name either queue.
+
+Fix: the lists sheet says ArrayDeque is a double-ended queue (`offer`/`poll` first-in first-out, `push`/`pop` last-in first-out) and a PriorityQueue hands back the smallest next. The lesson tip says the same and says this lesson drills ArrayList first.
+
+Verification: `validate-data.js` requires both sentences. PASS.
+
+## Cycle 106 — One printed program, one question
+
+Compared every lesson exercise with every interview question. Five print snippets were copied exactly: a memory assignment, a refs print, two inheritance prints, and a modern pattern match. The strings concatenation, `fact(5)`, the palindrome, three Swift prints, and a List.of question were the same program with different option text. `swift.values` repeated the `swift.enums` north/south switch.
+
+Fix: the interview copies and the values-lesson exercise were rewritten. The new prints still match their explanations: `isPal("kayak")` and `isPal("ab")` is `true false`; `fact(4)` is 24; the Integer cache uses 126 and 200; `1 + 2 + "3" + 4` is `334`; Swift interpolation is `Hi Bo`; `"xy"` prints `2 XY`; `["Zo","Amy"]` joins as `Amy,Zo`; the override prints `purr`; the constructors print `XY`; `List.of(1, 2).set(0, 9)` throws; the copied reference still prints `red`; `"hey".length` is 3. The values lesson now copies an enum and prints `true`. `validate-data.js` rejects a repeated full question key and a repeated print snippet.
+
+Verification: `validate-data.js` PASS. `validate-java.js` PASS, 175 snippets, JDK 21. `validate-swift.js` PASS, 42 snippets, Swift 6.0.3. `validate-ambiguity.js` PASS, arrange-duplicates=1.
+
+## Cycle 107 — Quest gems when the bar is already full
+
+Opened a profile whose XP log was already past the daily goal and whose quests were not claimed. Quest gems were granted only inside a later quest bump, so a completed bar could sit there with the chest unpaid.
+
+Fix: `claimQuests()` grants 15 gems for each newly finished quest and 25 for the chest. `settleRewards()` calls it. `daily()` calls `settleRewards()` before it saves, and `addXP()` calls the same helper. Claims stay idempotent through `qd.claimed` and `qd.chest`.
+
+Verification: `a full daily bar pays the goal and the xp quest once`. Gems go from 50 to 75 (10 for the goal, 15 for the XP quest). The chest stays false. A reload stays at 75. PASS on all four projects.
+
+## Cycle 108 — The daily goal when it is lowered
+
+Set today’s XP to 20 with a goal of 30, then lowered the goal to 10. The +10 goal gems used to be paid only inside `addXP`, so opening the app already over the goal, or lowering the goal under today’s XP, left `goalDay` empty.
+
+Fix: `settleRewards()` pays the 10 gems when `goalDay` is not today and `xpLog[today]` is at least the goal. Lowering the goal saves, and the next settle sees the new goal.
+
+Verification: `lowering the daily goal pays gems that were already earned`. Gems stay 50 at a goal of 30. Choosing the 10 XP radio checks it, sets the goal to 10, sets `goalDay` to today, claims the XP quest, and lands on 75 gems. PASS on all four projects.
+
+## Cycle 109 — Out of hearts across midnight
+
+Sat on the out-of-hearts screen with the clock at 2026-06-15 23:59:30 and zero hearts. The screen drew once. A new day or a 30-minute regen did not redraw it, and it did not return to Learn. A question already in progress still calls `daily()` from the continue path. That path was left as it is.
+
+Fix: `heartsDue()` is true on a new day, or when 30 minutes have passed since `heartAt` and hearts are below 5. The hearts screen keeps its own one-second watch. The watch calls `daily()` only when a heart is due, redraws only when the hearts, next-heart, or gems label changes, and returns to Learn when hearts are back. It does not save on every tick.
+
+Verification: `out of hearts refreshes when the day rolls over`. The heading and the refill button are visible, then the clock jumps 60 seconds. Daily goal is visible, hearts are 5, and `heartDay` is 2026-06-16. PASS on all four projects.
+
+## Cycle 110 — A lesson stays on its profile
+
+Started a lesson, then added a profile in a second tab. The storage listener hydrated the newer blob into the active profile, so the open lesson could change identity.
+
+Fix: a storage event during a lesson records that a newer blob exists and does not hydrate. The next save, when the stored revision is newer, copies the other profiles in and puts the in-memory lesson profile back. A newer blob while no lesson is open still hydrates and returns, which is the path the older two-tab purchase test uses.
+
+Verification: `a lesson keeps its profile when another tab adds one`. After Bea is added, answering one question on the keyboard leaves the name Ada, and the stored names are Ada and Bea. `a second tab keeps a purchase and a goal change from the other tab` still PASS on all four projects. The goal control in that test is a radio, which is cycle 112.
+
+## Cycle 111 — Avatar names
+
+Opened Edit profile. The avatar buttons were the emoji with no name, so two people-at-a-computer pictures were not distinguishable.
+
+Fix: each avatar radio is named from Fox, Panda, Octopus, Owl, Frog, Tiger, Koala, Unicorn, Penguin, Whale, Dinosaur, Robot, Woman at a computer, Man at a computer, Astronaut, and Bee, with the word avatar. The group is named Pick an avatar.
+
+Verification: `avatars, the daily goal, and profile switches have names` expects each `name + ' avatar'` radio once, with an exact match. The first phone-light run matched two radios for Man at a computer, because the default name match is a substring and Woman at a computer contains that phrase. The assertion uses an exact name. PASS on all four projects.
+
+## Cycle 112 — The settings goal is a radio group
+
+Opened Settings. The daily-goal choices were plain buttons. The profile editor still uses its own goal buttons, with the words Casual, Regular, Serious, and Intense.
+
+Fix: the settings row is a radiogroup named Daily goal. Each choice is a radio named `10 XP`, `30 XP`, `50 XP`, or `100 XP`, with `aria-checked`.
+
+Verification: the same test. The 30 XP radio is checked and the 10 XP radio is not. The lowering-goal test in cycle 108 clicks the 10 XP radio and reads `aria-checked`. PASS on all four projects.
+
+## Cycle 113 — Switch buttons and the calendar letters
+
+Read the profile list and the streak calendar. Every other profile had a button named Switch. The weekday letters Su through Sa were inside a calendar image with no spoken day names.
+
+Fix: each switch button is named `Switch to` plus the profile name. The calendar image says the last 5 weeks run Sunday through Saturday. The letters stay visible.
+
+Verification: the same test finds an image whose name matches Sunday through Saturday. `several profiles can be added and switched by name` clicks Switch to Ada and Switch to Cam. PASS on all four projects.
+
+## Cycle 114 — A new service worker and a leftover v16 cache
+
+Loaded the app, planted a cache named `byteryte-v16`, and asked what an already controlled tab does when a worker takes control. The cache name was still `byteryte-v16`. Nothing told the open tab to reload. `boot.js` only registers `sw.js`. The toast belongs in `app.js`.
+
+Fix: the cache name is `byteryte-v17`. Activate still deletes every other cache. The first `controllerchange` is the worker claiming a page that had none, and it shows no toast. A later change toasts “A new version of ByteRyte is ready. Reload to use it.”
+
+Verification: `service worker v17 replaces a v16 cache and tells an open tab to reload`. The first draft registered `sw.js` again without a reload. Chromium did not run activate for the same script while the page stayed controlled, so v16 remained. The test now unregisters, reloads, and polls. v17 is present and v16 is absent. A dispatched `controllerchange` then shows the toast. PASS on all four projects. `offline reload under /ByteRyte/ uses cache v17` is in the combined run. This is one reload onto the worker in this build, plus a synthetic controller change. Two different `sw.js` files were not served to one long-lived tab.
+
+## Cycle 115 — Reduced motion and confetti
+
+Finished `java.run` with the suite’s reduced-motion setting. `confetti()` already returns before it adds pieces, and the stylesheet sets animation and transition to none.
+
+Found nothing broken.
+
+Verification: `reduced motion skips confetti`. The finish heading is visible, `.conf` count is 0, and an injected `.conf` has `animationName` none. PASS on all four projects.
+
+## Cycle 116 — A long emoji name and Arabic text
+
+Opened a profile named with twelve fox emoji, which is the 24-unit cap, and a profile named مرحبا يا عالم. The heading, the profile card, and the switch row use `min-width: 0` and `overflow-wrap: anywhere`.
+
+The heading shows each name, and the overflow check is empty on the profile screen and on Learn. An overflow from before those rules was not measured, so this cycle does not count a layout bug.
+
+Verification: `long emoji and right-to-left names stay on screen`. PASS on all four projects.
+
+## Cycle 117 — Four profiles
+
+Added Bea, Cam, and Dee from the profile screen, then switched back to Ada and on to Cam.
+
+Found nothing broken. Add and switch already kept each profile.
+
+Verification: `several profiles can be added and switched by name`. The stored names are Ada, Bea, Cam, and Dee. PASS on all four projects.
+
+## Cycle 118 — The first answer from the keyboard
+
+Opened the first lesson. Start lesson is focused. Enter starts it. The first exercise is multiple choice. Digits 1 through 9 select a visible choice, and Enter checks it.
+
+Found nothing broken.
+
+Verification: `the first answer can be entered from the keyboard`. The digit is the visible index of the correct choice. Continue appears, and the explanation is not empty. PASS on all four projects.
+
+## Cycle 119 — Larger text and CSS zoom 2
+
+Turned on larger text, then set CSS zoom to 2. `clientWidth` stays 390 or 1280. `getBoundingClientRect` is scaled, so comparing a raw rectangle with `clientWidth` reports a false overflow. The fair check divides the rectangle by the computed zoom.
+
+The desk tabs fit after that division. The phone path did not. Lesson labels sat a few pixels past the left edge, about −4..115, −9..119, and −7..118 in layout pixels.
+
+Fix: under 420px the path offset factor is 0.42, the path padding is 12px, and the node label max width is 112px with overflow wrap. The desktop zigzag is unchanged.
+
+Verification: `larger text keeps the home screen inside the viewport`. `data-big` is set, the unzoomed overflow list is empty, and the zoomed layout-pixel list is empty. An earlier slice of all 14 fresh tests passed on phone-light and desk-light (28). The combined run repeats this test on all four projects. CSS zoom is the measurement. Pinch zoom was not used.
+
+## Cycle 120 — The level formula
+
+Read `level()`. The XP to reach level n is `25 * n * (n + 3)`, and the next level needs `100 + 50 * n`. The existing feature test checks 100, 249, and 250 XP.
+
+Found nothing wrong. No formula change.
+
+Verification: `levels follow the xp curve and huge xp still renders` PASS on all four projects in the combined run.
+
+## Cycle 121 — Double XP and the daily log
+
+Read `addXP()`. Double XP multiplies the grant before it is written to `xpLog`, so the doubled amount counts toward the daily goal.
+
+That is the intended rule. No change, and no new test.
+
+## Cycle 122 — Hearts, the shop, and a streak freeze
+
+Read the heart timer, the shop debounce, and the streak freeze. A freeze covers one missed day and is all or nothing. The shop waits 400ms per item. Regeneration is 30 minutes, and a new `heartDay` refills to 5.
+
+Found no new contradiction. No change.
+
+Verification: `hearts regenerate, refill at midnight, and block lessons at zero`, `streak freeze covers one missed day and resets when it cannot`, and the shop cases in the combined run. PASS on all four projects.
+
+## Cycle 123 — No saved profile
+
+Cleared `byteroots-profiles` and loaded the app. Empty storage already builds a profile and shows onboarding. A corrupt `{` was already covered by the older boot test.
+
+Found nothing broken.
+
+Verification: `a fresh install with no profile reaches onboarding`. Start from scratch, Pick an avatar, and Fox avatar are visible. `corrupt storage boots instead of hanging` PASS in the combined run.
+
+## Cycle 124 — Print snippets after the rewrites
+
+Ran every Java and Swift print snippet after the cycle 106 edits. Multiple choice and fill answers are still not executed.
+
+Verification: `validate-java.js` PASS, 175 snippets, JDK 21. `validate-swift.js` PASS, 42 snippets, Swift 6.0.3.
+
+## Cycle 125 — The bundle and the combined run
+
+Checked the byte budget after the copy, the labels, and the phone-path rules. The cap is still 400000. `boot.js` is included.
+
+Found 339293 bytes. That is inside the cap.
+
+Verification: `validate-perf.js` PASS, bytes=339293, limit=400000. The combined `npm test` is below. `rapid navigation lands on the last screen` and `the local day follows a timezone change` are in that run. The timezone case sets Pacific/Kiritimati, reads offset −840, and sees hearts refill to 5 on the page’s local day.
+
+## Final verification
+
+`npm test` from `tests/` exited 0. Playwright reported 2.5m. An earlier slice of `e2e/fresh.spec.js` on phone-light and desk-light passed 28 tests. This run is the one that counts.
+
+- `validate-data.js` PASS, lessons=62, exercises=683, interview=139, fixes=62, outs=217
+- `validate-static.js` PASS
+- `validate-docs.js` PASS, 53 URLs
+- `validate-java.js` PASS, 175 snippets, JDK 21
+- `validate-swift.js` PASS, 42 snippets, Swift 6.0.3
+- `validate-ambiguity.js` PASS, arrange-duplicates=1
+- `validate-perf.js` PASS, bytes=339293, limit=400000
+- Playwright PASS, 264 passed, 0 skipped
+
+The four soak logs are `soak nodes 244 243` with heaps 2913568, 2909416, 2908144, and 2908512, each with 50 lessons. The four slow-4G times are 2640 ms, 2621 ms, 2734 ms, and 2704 ms.
+
+## Closing summary
+
+- Total cycles completed: 125. This batch is 101–125.
+- Bugs found and fixed in this batch: 16. Counted once each: Scanner missing before the strings bug (101); HashMap named before Maps (102); Big-O notation before the Big-O lesson (103); pattern matching before Modern Java (104); ArrayDeque and PriorityQueue unnamed in the lists lesson (105); the copied print questions (106); quest gems left unpaid on an already full bar (107); the daily-goal gems skipped when the goal drops under today’s XP (108); the out-of-hearts screen standing still across midnight (109); a second tab replacing the profile under an open lesson (110); avatar buttons with no names (111); settings goals that were not radios (112); switch buttons that all said Switch, and calendar letters with no day names (113); an open tab with no reload toast when a worker takes control (114); phone path labels past the left edge at CSS zoom 2 (119).
+- Not in that 16: the exact avatar locator (111), the service-worker test reloading so activate runs (114), the zoom measurement dividing by the computed zoom (119), the name wrap rules whose earlier overflow was not measured (116), and the cache rename from v16 to v17 (114). Cycles 115–118 and 120–124 found the checked behavior already working.
+- Cumulative bugs across cycles 1–125: 75. The first hundred counted 59.
+- Final test counts: `npm test` exited 0. Validators: lessons 62, exercises 683, interview 139, fixes 62, outs 217, docs 53, Java snippets 175 (JDK 21), Swift snippets 42 (Swift 6.0.3), arrange-duplicates 1, bytes 339293 of 400000. Playwright 264 passed, 0 skipped, in 2.5m. Soak on all four projects: 244 nodes then 243, heaps 2908144–2913568, 50 lessons. Slow 4G on all four projects: 2621–2734 ms, under the 8 second guard.
+- Known limitations / not testable here:
+  - No physical phone, no spoken VoiceOver, and no installed home-screen icon. The new labels are the accessible names Playwright reads. Offline is a Playwright context set to offline. CSS zoom 2 is not pinch zoom.
+  - The service-worker case plants a v16 cache, reloads onto this build’s worker, and then dispatches `controllerchange`. It does not serve two different `sw.js` files to one tab that stays open the whole time.
+  - A question already on screen still meets midnight through the existing continue path. The new clock jump covers the out-of-hearts screen.
+  - The slow-4G times are Chromium emulation against the local uncompressed server. They are not a Lighthouse run and not the live GitHub Pages site.
+  - The 50-lesson soak is four projects and a heap snapshot after a garbage collection. It is not a multi-hour session.
+  - Print snippets were executed. Multiple choice and fill answers were not executed. The duplicate programs in this batch were found by comparing the question text and the code.

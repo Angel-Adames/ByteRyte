@@ -152,6 +152,30 @@ has('not two records that keep different fields');
 lacks('null-safe on the left');
 has('does not throw if either side is null');
 has('Error is also unchecked');
+has('Scanner scanner = new Scanner(System.in) reads typed text. nextLine() returns one new String');
+lacks('HashMap/HashSet will misbehave');
+has('Hash-based collections, which you meet in Maps & Sets');
+lacks('HashSet.contains is O(1) on average vs O(n) for a list.');
+has('The Big-O lesson names these O(1) and O(n).');
+lacks('or use pattern matching.');
+has('A later lesson, Modern Java, writes that test and cast together as instanceof Cat c.');
+has('ArrayDeque is a double-ended queue');
+has('A PriorityQueue hands back the smallest next.');
+
+const exKey = e => JSON.stringify([e.t, e.q || '', e.code || '', e.opts || e.lines || []]);
+const seenAll = new Map();
+const seenCode = new Map();
+function note(id, e) {
+  const k = exKey(e);
+  if (seenAll.has(k)) bad('duplicate exercise ' + id + ' matches ' + seenAll.get(k));
+  else seenAll.set(k, id);
+  if (e.t === 'out' && e.code) {
+    if (seenCode.has(e.code)) bad('duplicate output ' + id + ' matches ' + seenCode.get(e.code));
+    else seenCode.set(e.code, id);
+  }
+}
+for (const t of TRACKS) for (const u of t.units) for (const l of u.lessons) l.ex.forEach((e, i) => note(l.id + '~' + i, e));
+IV.forEach((e, i) => note('iv-' + i, e));
 
 function keyed(prefix, choice) {
   const hits = [];
