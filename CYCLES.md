@@ -1441,3 +1441,229 @@ The four soak logs are `soak nodes 244 243` with heaps 2914844, 2914968, 2910004
   - The 50-lesson soak is four projects and a heap snapshot after a garbage collection. It is not a multi-hour session.
   - Print snippets were executed. Multiple choice and fill answers were not executed.
   - A second Double XP purchase, stacked on a timer that was already running, was not clicked. The code adds 15 minutes to the later end, and the shop sentence says that.
+
+## Cycle 151 — JavaFX thread explanation
+
+Read App Lifecycle. The question “Where must UI updates happen?” had the right answer, the JavaFX Application Thread. The explanation told the learner to call `Platform.runLater` from a background thread. That method is taught in Concurrency & Tasks, which comes after styling.
+
+Fix: the explanation says this thread paints and delivers clicks, that `start(Stage)` already runs on it, and that Concurrency & Tasks is where `Platform.runLater` is shown. The lifecycle sheet says the same.
+
+Verification: `validate-data.js` requires `A later lesson, Concurrency & Tasks, shows Platform.runLater` and rejects `From background threads use Platform.runLater`. PASS.
+
+## Cycle 152 — ListView before the lists lesson
+
+Read Layouts & Controls. The scrollable-list answer said ListView displays an ObservableList. `getChildren()` was explained as returning `ObservableList<Node>`. Events is the next lesson. Lists & Selection is the next unit.
+
+Fix: ListView is named as the scrolling list, and the lists lesson is where the observable list is shown. `getChildren()` is the list of child nodes, which the events lesson calls observable because the pane watches it. The layout sheet matches.
+
+Verification: `validate-data.js` requires `The Lists & Selection lesson shows the observable list` and rejects `ListView displays an ObservableList of items.` PASS.
+
+## Cycle 153 — Absolute positioning inside the variables lesson
+
+Read Variables, Transitions & Units, which sits before Positioning. One question asked what `position: absolute` is relative to. The learner had not been taught positioned ancestors.
+
+Fix: that slot is `var(--brand, #16a34a)` when `--brand` is missing. The answer is the fallback `#16a34a`. The variables sheet says the second argument of `var()` is the fallback, and that position and z-index belong to Positioning. The absolute-box fact stays on the Positioning fill: if no ancestor is positioned, the box uses the initial containing block.
+
+Verification: `validate-data.js` requires `The second argument of var() is the fallback` and rejects `position: absolute is positioned relative to`. PASS.
+
+## Cycle 154 — z-index before position
+
+The same variables lesson asked what z-index needs outside flex and grid. `static`, `relative`, and `absolute` are the Positioning lesson.
+
+Fix: the question moved onto Positioning, after the rule that two absolute siblings paint in source order. The sheet and the tip say z-index applies to a positioned box and to a flex or grid item, and that a static box ignores it.
+
+Verification: the question text is unchanged and now lives on Positioning. The variables lesson no longer contains it. `validate-data.js` PASS, exercises=684 (one new `@layer` question in cycle 158; this move does not add a second copy).
+
+## Cycle 155 — map before closures
+
+Read Value vs Reference Types. One print was `nums.map { $0 * 2 }`. Closures and `map` are Protocols, Closures & Collections, which comes after Errors & SwiftUI Basics. The protocol multiple choice in this lesson named the idea without saying when it is written. The inheritance line said structs use protocols as if that lesson had happened.
+
+Fix: the print is `var a = [1, 2]`, `var b = a`, `b[0] = 9`, `print(a[0])`. The answer is `1`, because an array is a struct and the assignment copies it. The tip says Array, Dictionary, and Set are structs, and that protocols and closures come after the errors lesson. The protocol answer points at Protocols, Closures & Collections after errors. The inheritance answer says a later lesson writes the protocol.
+
+Verification: `validate-swift.js` PASS, 42 snippets, Swift 6.0.3, including this print. `validate-data.js` requires `An array is a struct. Assigning copies the values` and `The Protocols, Closures & Collections lesson, after errors, is where you write one.` It rejects `map with a trailing closure`. PASS. The existing protocols print that appends to a copy is a different snippet.
+
+## Cycle 156 — Alerts repeated the bind question
+
+Read Alerts & Dialogs. One question asked what `label.setText` does to a bound property. Events already asks that, with the same outcome.
+
+Fix: the question contrasts `alert.show()` and `alert.showAndWait()`. `show()` returns as soon as the dialog is on screen and does not hand back the button. `showAndWait()` waits and returns `Optional<ButtonType>`. The fill that asks for the waiting call stays.
+
+Verification: `validate-data.js` requires `show() displays the dialog and returns immediately.` and rejects `You call label.setText on a property that is currently bound.` PASS.
+
+## Cycle 157 — JavaFX bold text assumed the CSS track
+
+Read Styling JavaFX with CSS. The bold-text fill’s explanation said it was the same idea as web CSS with an `-fx-` prefix. JavaFX unlocks from the Java path. The HTML & CSS track is separate.
+
+Fix: the explanation says the property is `-fx-font-weight`, and that the prefix keeps it from colliding with the web property `font-weight`.
+
+Verification: `validate-data.js` requires that sentence and rejects `Same idea as web CSS but -fx- prefixed.` PASS.
+
+## Cycle 158 — Specificity was the whole cascade
+
+Read Box Model & Selectors and Modern CSS. The box tip gave the classic order (inline, then `#id`, then class, then element) as how the cascade picks a winner. `@layer` was not in Modern CSS. Current CSS lets a layer order beat specificity, and unlayered author styles beat layered ones. `!important` reverses the layer order.
+
+Fix: the box tip and sheet say that order is inside one cascade layer, and they point at Modern CSS for `@layer`. Modern CSS states the layer rules in the tip and the sheet. A new question: a class rule in `@layer utilities` against an id rule in no layer. The correct choice is the unlayered id, because unlayered author styles beat layered ones. The “an id always beats a class” choice is a distractor.
+
+Verification: `validate-data.js` requires `Inside one cascade layer, specificity picks the winner` and `Unlayered author styles sit above every cascade layer`. It rejects the old specificity sentence. PASS. Exercise count is 684.
+
+## Cycle 159 — 1vw and the visible page
+
+Read Responsive Design. `1vw` was answered as 1% of the viewport width, which is right for the layout viewport. The explanation said viewport units are relative to the browser window. `100vw` can be wider than the visible page when a vertical scrollbar takes space. `svh` and `dvh` follow the visible screen height.
+
+Fix: the tip, the sheet, and the explanation say that. The correct choice is still 1% of the viewport width.
+
+Verification: `validate-data.js` requires `1vw is 1% of the layout viewport width`. PASS.
+
+## Cycle 160 — A second Double XP purchase
+
+Read the shop. A purchase sets `doubleUntil` to the later of now and the current end, plus 15 minutes. Cycle 150 had read that formula and had not clicked it.
+
+Clicked Double XP twice with the clock paused at 12:01 on 2026-06-15, 500 ms between the clicks. Gems started at 200.
+
+Found the window already stacked. No product change.
+
+Verification: `buying Double XP twice extends the window by 15 minutes each time`. The end is 15 minutes, then 30 minutes. Gems are 160, then 120. The purchase count is 2. Home shows Double XP active and 30 min left. PASS on phone-light before the combined run, and on all four projects in the suite below.
+
+## Cycle 161 — JavaFX windows, tasks, and events
+
+Read Windows & Modality, Concurrency & Tasks, and the events lesson. `APPLICATION_MODAL`, `WINDOW_MODAL`, default `NONE`, `initOwner` and `initModality` before `show`, `Task.call`, `getValue`, and `Platform.runLater` on the task lesson match the OpenJFX 21 notes already in the sheets.
+
+Found nothing further to change.
+
+Verification: those lessons still have one fix each. `validate-data.js` PASS. `validate-java.js` PASS, 175 snippets, JDK 21. The new wording is not a print snippet.
+
+## Cycle 162 — CSS box, flex, forms, and access
+
+Read the box-model arithmetic, flex and grid, forms, and accessible CSS. Margin collapse of 20 and 30 stays 30. `#title` still beats `.big.red`. `display: none` is still the option that leaves the accessibility tree, and the other three options stay reachable. `:focus-visible` and the label-for-input pair stay.
+
+Found nothing further to change.
+
+Verification: `validate-data.js` PASS. The combined run includes `larger text keeps the home screen inside the viewport`. PASS on all four projects.
+
+## Cycle 163 — Swift basics, enums, throws, and concurrency
+
+Read Basics & Optionals, Enums, Throwing Functions, Observable Models & Navigation, and Async, Await, and the Main Actor. Integer division of `7 / 2`, exhaustive switch, `try?`, `@Observable` versus `ObservableObject`, `NavigationStack`, and the main-actor write after `await` stay as written. Swift 6.0.3 executed the print snippets.
+
+Found nothing further to change.
+
+Verification: `validate-swift.js` PASS, 42 snippets, Swift 6.0.3.
+
+## Cycle 164 — Cache v19
+
+This batch edits `data.js` and `sw.js`, so the precache name is `byteryte-v19`. Activate still deletes every other cache.
+
+Verification: `an open tab installs a newer service worker without reloading` serves v18, then this build, with no reload. The toast is absent before `update()`. After it, the toast is visible, `byteryte-v19` is present, and `byteryte-v18` is gone. `service worker v19 replaces a v18 cache and tells an open tab to reload` plants v18 and expects v19. `offline reload under /ByteRyte/ uses cache v19` finds `boot.js` in that cache. PASS on all four projects. `validate-static.js` PASS. The rename is the ship step, not a separate defect.
+
+## Cycle 165 — Hearts at midnight and on the regen clock
+
+Repeated the question-on-screen heart checks.
+
+Found nothing broken.
+
+Verification: `a question on screen refills hearts at midnight` and `a heart comes back while the question stays on screen` PASS on all four projects.
+
+## Cycle 166 — Double XP on a lesson
+
+Repeated the session-boost checks. A lesson started inside the window still pays 62 XP after the timer ends. A lesson started one second after the end pays 31.
+
+Found nothing broken.
+
+Verification: `a lesson started during double XP keeps the boost after the timer ends` and `a lesson started after double XP expired is not boosted` PASS on all four projects.
+
+## Cycle 167 — Radio names and the gem list
+
+Repeated the settings, question, and shop-list checks.
+
+Found nothing broken.
+
+Verification: `settings and the question name their radio groups` and `the shop lists every gem reward` PASS on all four projects.
+
+## Cycle 168 — Level boundaries and goal gems
+
+Repeated the previous batch’s XP and reward checks as part of the combined run.
+
+Found nothing broken.
+
+Verification: `levels follow the xp curve and huge xp still renders`, `a full daily bar pays the goal and the xp quest once`, and `lowering the daily goal pays gems that were already earned` PASS on all four projects. `validate-static.js` still requires the level-up, quest, and chest lines.
+
+## Cycle 169 — Long names, zoom, and keyboard
+
+Repeated the previous batch’s name, zoom, and keyboard checks as part of the combined run.
+
+Found nothing broken.
+
+Verification: `long emoji and right-to-left names stay on screen` and `larger text keeps the home screen inside the viewport` PASS on all four projects.
+
+## Cycle 170 — A second tab during a lesson
+
+Repeated the previous batch’s profile-swap check as part of the combined run.
+
+Found nothing broken.
+
+Verification: `a lesson keeps its profile when another tab adds one` PASS on all four projects.
+
+## Cycle 171 — Docs
+
+Fetched every lesson and interview URL.
+
+One first pass returned 503 for the OpenJFX `Stage` page. A direct request then returned 200, and the suite’s fetch returned 200 for every URL. The address did not change.
+
+Verification: `validate-docs.js` PASS, 53 URLs.
+
+## Cycle 172 — Ambiguity and duplicate output
+
+The new questions have one correct choice each. The new Swift print is not the protocols-lesson append print. The moved z-index question is not copied.
+
+Found nothing further.
+
+Verification: `validate-ambiguity.js` PASS, arrange-duplicates=1. `validate-data.js` duplicate scan PASS, outs=217.
+
+## Cycle 173 — Bundle size
+
+The lesson text and the `@layer` question grew the first-load files.
+
+Found the bundle still under the cap.
+
+Verification: `validate-perf.js` PASS, bytes=343018, limit=400000.
+
+## Cycle 174 — Soak and slow 4G
+
+Ran the 50-lesson soak and the slow-4G lesson on all four projects inside the suite.
+
+Found nothing broken.
+
+Verification: soak logs are `soak nodes 244 243` with heaps 2918240, 2918188, 2909036, and 2913428, each with 50 lessons. Slow 4G times are 2680 ms, 2669 ms, 2698 ms, and 2729 ms.
+
+## Cycle 175 — What this batch adds up to
+
+Checked the write-ups above against the suite. The closing count is below.
+
+## Final verification
+
+`npm test` from `tests/` exited 0. Playwright reported 2.6m. This run is the one that counts. A first docs fetch had returned 503 for one OpenJFX page; the run below fetched every URL at 200.
+
+- `validate-data.js` PASS, lessons=62, exercises=684, interview=139, fixes=62, outs=217
+- `validate-static.js` PASS
+- `validate-docs.js` PASS, 53 URLs
+- `validate-java.js` PASS, 175 snippets, JDK 21
+- `validate-swift.js` PASS, 42 snippets, Swift 6.0.3
+- `validate-ambiguity.js` PASS, arrange-duplicates=1
+- `validate-perf.js` PASS, bytes=343018, limit=400000
+- Playwright PASS, 296 passed, 0 skipped
+
+The four soak logs are `soak nodes 244 243` with heaps 2918240, 2918188, 2909036, and 2913428, each with 50 lessons. The four slow-4G times are 2680 ms, 2669 ms, 2698 ms, and 2729 ms.
+
+## Closing summary
+
+- Total cycles completed: 175. This batch is 151–175.
+- Bugs found and fixed in this batch: 9. Counted once each: the lifecycle explanation using `Platform.runLater` before its lesson (151); layouts explaining ListView and `getChildren()` as an observable list too early (152); the variables lesson teaching `position: absolute` (153); the variables lesson teaching `z-index` (154); the values lesson printing `map` and `$0` before closures (155); Alerts repeating the bound-property question (156); the JavaFX bold-text line assuming the web CSS track (157); the box model presenting specificity as the whole cascade, with `@layer` missing from Modern CSS (158); `1vw` described only as “the browser window,” without the scrollbar and `svh`/`dvh` facts (159).
+- Not in that 9: the cache rename from v18 to v19 (164), and the second Double XP click, which already stacked and is now tested (160).
+- Cumulative bugs across cycles 1–175: 92. Cycles 1–150 counted 83.
+- Final test counts: `npm test` exited 0. Validators: lessons 62, exercises 684, interview 139, fixes 62, outs 217, docs 53, Java snippets 175 (JDK 21), Swift snippets 42 (Swift 6.0.3), arrange-duplicates 1, bytes 343018 of 400000. Playwright 296 passed, 0 skipped, in 2.6m. Soak on all four projects: 244 nodes then 243, heaps 2909036–2918240, 50 lessons. Slow 4G on all four projects: 2669–2729 ms, under the 8 second guard.
+- Known limitations / not testable here:
+  - No physical phone, no spoken VoiceOver, and no installed home-screen icon. The names Playwright reads are the accessible names. Offline is a Playwright context set to offline. CSS zoom 2 is not pinch zoom.
+  - The two service-worker scripts were fulfilled by the test. They were not two deploys of GitHub Pages. The tab did not reload between them.
+  - The slow-4G times are Chromium emulation against the local uncompressed server. They are not a Lighthouse run and not the live GitHub Pages site.
+  - The 50-lesson soak is four projects and a heap snapshot after a garbage collection. It is not a multi-hour session.
+  - Print snippets were executed. Multiple choice and fill answers were not executed.
+  - The OpenJFX `Stage` URL returned 503 once during a docs fetch and 200 on the suite run. That host can fail while the page is fine.
