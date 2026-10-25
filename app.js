@@ -3,7 +3,8 @@
 const $=s=>document.querySelector(s),$$=s=>[...document.querySelectorAll(s)],app=$('#app'),DAY=864e5;
 const PK='byteroots-profiles',GK='byteroots-settings';
 const iso=(d=new Date())=>{const z=new Date(d);return z.getFullYear()+'-'+String(z.getMonth()+1).padStart(2,'0')+'-'+String(z.getDate()).padStart(2,'0')};
-const today=()=>iso(),yday=()=>iso(Date.now()-DAY),dayDiff=(a,b)=>Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/DAY);
+const shiftDay=(n,from=new Date())=>{const z=new Date(from);z.setDate(z.getDate()+n);return iso(z)};
+const today=()=>iso(),yday=()=>shiftDay(-1),dayDiff=(a,b)=>Math.round((new Date(b+'T12:00')-new Date(a+'T12:00'))/DAY);
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 const AVATARS=['🦊','🐼','🐙','🦉','🐸','🐯','🐨','🦄','🐧','🐳','🦖','🤖','👩‍💻','👨‍💻','🧑‍🚀','🐝'];
@@ -37,19 +38,36 @@ function sanitize(p){
   if(!p.stats||typeof p.stats!=='object'||Array.isArray(p.stats))p.stats={};
   ['answered','correct','perfect','lessons','interviews','bestIv','reviews','challenges','bought','bestChal','saved'].forEach(k=>{if(p.stats[k]!=null)p.stats[k]=Math.round(finite(p.stats[k],0,0,1e9))});
   return p}
+function ownCopy(target,raw){if(!raw||typeof raw!=='object'||Array.isArray(raw))return target;Object.keys(raw).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;target[k]=raw[k]});return target}
 function hydrate(){
   if(!P||typeof P!=='object'||Array.isArray(P))P={active:null,list:{}};
-  if(!P.list||typeof P.list!=='object')P.list={};
-  Object.keys(P.list).forEach(id=>{const d=NEWP(),raw=P.list[id]||{};
-    const merged=Object.assign(d,raw,{id,inv:Object.assign({},d.inv,raw.inv||{}),stats:Object.assign({},d.stats,raw.stats||{}),saved:Object.assign({},raw.saved||{}),badges:Object.assign({},raw.badges||{}),done:Object.assign({},raw.done||{}),review:Object.assign({},raw.review||{}),misses:Object.assign({},raw.misses||{}),xpLog:Object.assign({},raw.xpLog||{}),dlog:Object.assign({},raw.dlog||{}),gates:Object.assign({},raw.gates||{})});
+  if(!P.list||typeof P.list!=='object'||Array.isArray(P.list))P.list={};
+  Object.keys(P.list).forEach(id=>{
+    if(id==='__proto__'||id==='constructor'||id==='prototype'){delete P.list[id];return}
+    const raw=P.list[id];
+    if(!raw||typeof raw!=='object'||Array.isArray(raw)){delete P.list[id];return}
+    const d=NEWP();
+    const merged=ownCopy(Object.assign(d,{id}),raw);
+    merged.id=id;
+    merged.inv=ownCopy(Object.assign({},d.inv),raw.inv);
+    merged.stats=ownCopy(Object.assign({},d.stats),raw.stats);
+    merged.saved=ownCopy({},raw.saved);
+    merged.badges=ownCopy({},raw.badges);
+    merged.done=ownCopy({},raw.done);
+    merged.review=ownCopy({},raw.review);
+    merged.misses=ownCopy({},raw.misses);
+    merged.xpLog=ownCopy({},raw.xpLog);
+    merged.dlog=ownCopy({},raw.dlog);
+    merged.gates=ownCopy({},raw.gates);
     if(!(raw.curriculum>=2))migrateProgress(merged);
     sanitize(merged);
     P.list[id]=merged});
   if(!P.active||!P.list[P.active])P.active=Object.keys(P.list)[0]||null;
   S=P.active?P.list[P.active]:null}
 hydrate();
-const saveG=()=>localStorage.setItem(GK,JSON.stringify(G));
-const save=()=>{if(S)P.list[S.id]=S;localStorage.setItem(PK,JSON.stringify(P))};
+function writeStore(k,v){try{localStorage.setItem(k,v);return true}catch(e){toast('This browser blocked saving. Free some space and try again.');return false}}
+const saveG=()=>writeStore(GK,JSON.stringify(G));
+const save=()=>{if(S)P.list[S.id]=S;return writeStore(PK,JSON.stringify(P))};
 const HREG=30*60*1000;
 function regen(){if(S.hearts>=5){S.heartAt=null;return}if(!S.heartAt){S.heartAt=Date.now();return}const n=Math.floor((Date.now()-S.heartAt)/HREG);if(n>0){S.hearts=Math.min(5,S.hearts+n);S.heartAt=S.hearts>=5?null:S.heartAt+n*HREG;save()}}
 function nextHeart(){if(S.hearts>=5||!S.heartAt)return '';const m=Math.max(1,Math.ceil((S.heartAt+HREG-Date.now())/60000));return `${m} min`}
@@ -62,9 +80,10 @@ function daily(){ // refill hearts at midnight, streak freeze handling
   save()}
 // ---------- theme / sound / toast ----------
 const mq=matchMedia('(prefers-color-scheme: dark)');
-const applyTheme=()=>{const d=G.theme==='dark'||(G.theme==='system'&&mq.matches);document.documentElement.dataset.theme=d?'dark':'light';$('meta[name=theme-color]').content=d?'#0b1220':'#16a34a';document.documentElement.toggleAttribute('data-big',!!G.big)};
+const standalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}};
+const applyTheme=()=>{const d=G.theme==='dark'||(G.theme==='system'&&mq.matches);document.documentElement.dataset.theme=d?'dark':'light';$('meta[name=theme-color]').content=d?'#0b1220':'#16a34a';document.documentElement.toggleAttribute('data-big',!!G.big);document.documentElement.toggleAttribute('data-standalone',standalone())};
 mq.addEventListener?.('change',applyTheme);applyTheme();
-let AC;const tone=(f,d=.12,t=0,type='sine')=>{if(!G.sound)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(.0001,AC.currentTime+t);g.gain.exponentialRampToValueAtTime(.15,AC.currentTime+t+.02);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+t+d);o.connect(g).connect(AC.destination);o.start(AC.currentTime+t);o.stop(AC.currentTime+t+d+.05)}catch(e){}};
+let AC;const tone=(f,d=.12,t=0,type='sine')=>{if(!G.sound)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(.0001,AC.currentTime+t);g.gain.exponentialRampToValueAtTime(.15,AC.currentTime+t+.02);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+t+d);o.connect(g).connect(AC.destination);o.start(AC.currentTime+t);o.stop(AC.currentTime+t+d+.05)}catch(e){}};
 const sfx={ok:()=>{tone(660);tone(880,.15,.09)},no:()=>{tone(220,.2,0,'triangle')},win:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.18,i*.11)),coin:()=>{tone(988,.08);tone(1319,.15,.07)}};
 const buzz=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
 const TQ=[];let tBusy=false;function toast(msg){TQ.push(msg);if(!tBusy)nextToast()}function nextToast(){const msg=TQ.shift();if(msg===undefined){tBusy=false;return}tBusy=true;const t=document.createElement('div');t.className='toast';t.setAttribute('role','status');t.textContent=msg;document.body.appendChild(t);const d=TQ.length?1500:2600;setTimeout(()=>t.classList.add('out'),d);setTimeout(()=>{t.remove();nextToast()},d+350)}
@@ -154,13 +173,52 @@ let cur='learn';
 function topbar(){const tight=S.streak>=100||S.gems>=1000;return `<header class="top${tight?' tight':''}"><button class="brand" data-go="learn" aria-label="ByteRyte home"><span class="logo">{ }</span>ByteRyte</button>
 <span class="stat" title="Day streak" aria-label="${S.streak} day streak">🔥 ${compact(S.streak)}</span><span class="stat" title="Gems" aria-label="${S.gems} gems">💎 ${compact(S.gems)}</span><span class="stat" title="${S.hearts<5&&nextHeart()?'Next heart in '+nextHeart():'Hearts full'}" aria-label="${S.hearts} hearts${S.hearts<5&&nextHeart()?', next in '+nextHeart():''}">❤️ ${S.hearts}</span>
 <button class="icon" data-go="settings" aria-label="Settings">⚙️</button></header>`}
-function rail(){const lv=level(),wk=[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[iso(Date.now()-i*DAY)]||0),0);
+function rail(){const lv=level(),wk=[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[shiftDay(-i)]||0),0);
   return `<aside class="rail" aria-label="Your progress"><section class="rcard me"><span class="avatar">${esc(S.avatar)}</span><div><b>${esc(S.name)}</b><small>Level ${lv.L} · ${lv.into}/${lv.need} XP</small><div class="bar sm"><i style="width:${lv.into/lv.need*100}%"></i></div></div></section>
   <section class="rcard"><div class="sgrid s2"><div class="scard">🔥<b>${S.streak}</b>streak</div><div class="scard">⚡<b>${wk}</b>XP this week</div></div></section>${questsHTML()}
   <section class="rcard promo"><b>💼 Interview coming up?</b><small>Run a timed mock screen and get a hire/no-hire scorecard.</small><button class="btn sm" data-go="interview">Practice now</button></section></aside>`}
 function shell(inner,{nav=true}={}){regen();document.querySelectorAll('.conf').forEach(c=>c.remove());app.className=nav?'withnav':'';app.innerHTML=topbar()+`<main id="main" class="fade">${/<h1[\s>]/.test(inner)?'':`<h1 class="sr">ByteRyte · ${({learn:'Learn path',practice:'Practice',interview:'Mock interview',shop:'Gem shop',profile:'Profile',settings:'Settings'})[cur]||'Home'}</h1>`}${inner}</main>`+(nav?rail():'')+(nav?`<nav class="bnav" aria-label="Main">${NAV.map(([id,ic,l])=>`<button data-go="${id}" class="${cur===id?'on':''}" ${cur===id?'aria-current="page"':''}><span aria-hidden="true">${ic}</span>${l}</button>`).join('')}</nav>`:'');
-  $$('[data-go]').forEach(b=>b.onclick=()=>go(b.dataset.go));window.scrollTo(0,0)}
-function go(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,settings}[v]||home)()}
+  $$('[data-go]').forEach(b=>b.onclick=()=>{if(!once(b))return;go(b.dataset.go)});window.scrollTo(0,0)}
+function show(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,settings}[v]||home)()}
+let histLock=false,navLock=false;
+function histPush(state){
+  if(histLock)return;
+  const c=history.state;
+  if(c&&c.br===1&&c.screen===state.screen&&c.ui===state.ui&&c.track===state.track&&c.back===state.back&&!!c.fresh===!!state.fresh)return;
+  try{history.pushState(Object.assign({br:1},state),'')}catch(e){}
+}
+function navBack(fallback){
+  if(navLock)return;navLock=true;queueMicrotask(()=>{navLock=false});
+  if(history.state&&history.state.br===1){history.back();return}
+  (fallback||home)();
+}
+function land(v){try{history.replaceState({br:1,screen:v},'')}catch(e){}show(v)}
+function go(v){histPush({screen:v});show(v)}
+function restore(s){
+  if(!s||s.br!==1){show('learn');return}
+  if(s.screen==='guide'){const t=T(s.track);if(t&&t.units[+s.ui||0])return guide(t,+s.ui||0);return show('learn')}
+  if(s.screen==='recap')return recap();
+  if(s.screen==='edit')return editProfile(!!s.fresh);
+  if(s.screen==='session'){try{history.replaceState({br:1,screen:s.back||'learn'},'')}catch(e){}return show(s.back||'learn')}
+  if(s.screen==='hearts')return outOfHearts();
+  show(s.screen||'learn');
+}
+function onPop(ev){
+  clearInterval(timerId);R=null;
+  const s=ev.state;
+  if(!s||s.br!==1){
+    const screen=(cur==='guide'||cur==='edit')?'learn':(cur||'learn');
+    histLock=true;try{history.pushState({br:1,screen},'')}catch(e){}histLock=false;show(screen);return}
+  histLock=true;restore(s);histLock=false;
+}
+function armHistory(){
+  try{
+    const screen=S&&S.onboarded?'learn':'edit';
+    const state={br:1,screen};if(screen==='edit')state.fresh=true;
+    history.replaceState({br:0,screen:'sentinel'},'');
+    history.pushState(state,'');
+  }catch(e){}
+}
 // ---------- learn ----------
 function home(){
   cur='learn';daily();const t=T(S.track),ls=lessons(t),locked=t.parent&&!trackOpen(t),firstOpen=ls.findIndex(x=>!S.done[x.key]),gp=Math.min(100,(S.xpLog[today()]||0)/S.goal*100);
@@ -180,15 +238,15 @@ function home(){
   if(t.id==='java')h+=`<div class="branchbox">🌿 <b>HTML &amp; CSS</b> ${trackOpen(T('css'))?'is open.':'opens after types through arrays.'} <b>JavaFX</b> (OpenJFX 21+, not part of the JDK) ${trackOpen(T('javafx'))?'is open.':'opens after object-oriented Java.'} Switch tabs above once a branch is open.</div>`;
   h+=`<p class="note">Java print answers were run on JDK 21. Swift print answers were run on Swift 6.0.3. Concepts checked against Oracle, OpenJFX, MDN, and Swift.org. Gems stay in the app.</p>`;
   shell(h);
-  $$('.tab').forEach(b=>b.onclick=()=>{S.track=b.dataset.t;save();home()});
-  $$('.node:not(.lock)').forEach(b=>b.onclick=()=>{const L=lessonOf(b.dataset.k);start(L.ex.map((e,i)=>({e,k:`${b.dataset.k}~${i}`})),{key:b.dataset.k,name:L.name,tip:L.tip,sheet:L.sheet,mode:'lesson'})});
-  $$('.guide').forEach(b=>b.onclick=()=>guide(t,+b.dataset.u));
+  $$('.tab').forEach(b=>b.onclick=()=>{if(!once(b))return;S.track=b.dataset.t;save();home()});
+  $$('.node:not(.lock)').forEach(b=>b.onclick=()=>{if(!once(b))return;const L=lessonOf(b.dataset.k);start(L.ex.map((e,i)=>({e,k:`${b.dataset.k}~${i}`})),{key:b.dataset.k,name:L.name,tip:L.tip,sheet:L.sheet,mode:'lesson'})});
+  $$('.guide').forEach(b=>b.onclick=()=>{if(!once(b))return;guide(t,+b.dataset.u)});
   $('.node.cur')?.scrollIntoView({block:'center'});
 }
-function guide(t,ui){daily();const u=t.units[ui];
+function guide(t,ui){daily();histPush({screen:'guide',track:t.id,ui});const u=t.units[ui];
   shell(`<button class="link" id="bk">‹ Back to path</button><h1 class="h1">📖 ${esc(u.name)}</h1><p class="muted">Key ideas for every lesson in this unit — read before you start, or come back to refresh.</p>
   ${u.lessons.map(l=>{const ex=l.ex.find(e=>e.t==='out'&&e.code.split('\n').length<=4);return `<article class="gcard" style="--c:${t.color}"><h2>${t.icon} ${esc(l.name)} ${S.done[l.id]?'<span class="tag">✓ done</span>':''}</h2><p>${esc(l.tip)}</p>${sheetHTML(l.sheet)}${docLink(DOCS[l.name])}${ex?`<div class="gex"><small>Example</small><pre class="code sm" tabindex="0">${hl(ex.code)}</pre><small>Prints: <code>${esc(ex.opts[ex.a])}</code></small></div>`:''}</article>`}).join('')}`);
-  $('#bk').onclick=home}
+  $('#bk').onclick=()=>{if(!once($('#bk')))return;navBack(home)}}
 // ---------- practice ----------
 function practice(){cur='practice';daily();const dn=due().length;
   const weak=Object.entries(S.misses).filter(([k])=>lessonOf(k)).sort((a,b)=>b[1]-a[1]).slice(0,4);
@@ -200,11 +258,11 @@ function practice(){cur='practice';daily();const dn=due().length;
   h+=weak.length?weak.map(([k,n])=>{const f=findLesson(k);return `<button class="pcard weak" data-k="${k}"><span class="pic">${f.t.icon}</span><span><b>${esc(f.l.name)}</b><small>${plural(n,'miss','misses')} · ${f.t.name}</small></span></button>`}).join(''):'<div class="empty"><span aria-hidden="true">🌱</span><p>No weak spots yet. Miss a question and that lesson will show up here.</p></div>';
   if(savedKeys().length)h+=`<h2 class="h2">Saved · ${savedKeys().length}</h2><ul class="svlist">${savedKeys().map(k=>{const e=exByKey(k),src=k.startsWith('iv-')?'Interview · '+e.tag:lessonOf(k.split('~')[0])?.name;return `<li><span><b>${esc((e.q||(e.t==='out'?'What does this print?':'Question')).slice(0,90))}</b><small>${esc(src||'')}</small></span><button class="link unsv" data-k="${k}" aria-label="Remove from saved">Remove</button></li>`}).join('')}</ul>`;
   shell(h);
-  $('#svd').onclick=()=>{const ks=savedKeys();if(ks.length)start(shuffle(ks).map(k=>({e:exByKey(k),k})),{name:'Saved questions',mode:'saved'})};
-  $$('.unsv').forEach(b=>b.onclick=()=>{delete S.saved[b.dataset.k];save();practice()});
-  $('#rev').onclick=()=>{const d=shuffle(due()).slice(0,10);if(d.length)start(d.map(k=>({e:exByKey(k),k})),{name:'Review',mode:'review'})};
-  $('#chal').onclick=()=>{const pool=[];TRACKS.forEach(t=>lessons(t).forEach(x=>{if(S.done[x.key]||S.unlockAll||t.id==='java'&&x.u.uid==='foundations')x.l.ex.forEach((e,i)=>{if(e.t!=='ar')pool.push({e,k:`${x.key}~${i}`})})}));start(shuffle(pool),{name:'Speed challenge',mode:'challenge',secs:60})};
-  $$('.weak').forEach(b=>b.onclick=()=>{const L=lessonOf(b.dataset.k);start(shuffle(L.ex.map((e,i)=>({e,k:`${b.dataset.k}~${i}`}))),{name:'Practice: '+L.name,mode:'practice',pk:b.dataset.k})});
+  $('#svd').onclick=()=>{if(!once($('#svd')))return;const ks=savedKeys();if(ks.length)start(shuffle(ks).map(k=>({e:exByKey(k),k})),{name:'Saved questions',mode:'saved'})};
+  $$('.unsv').forEach(b=>b.onclick=()=>{if(!once(b))return;delete S.saved[b.dataset.k];save();practice()});
+  $('#rev').onclick=()=>{if(!once($('#rev')))return;const d=shuffle(due()).slice(0,10);if(d.length)start(d.map(k=>({e:exByKey(k),k})),{name:'Review',mode:'review'})};
+  $('#chal').onclick=()=>{if(!once($('#chal')))return;const pool=[];TRACKS.forEach(t=>lessons(t).forEach(x=>{if(S.done[x.key]||S.unlockAll||t.id==='java'&&x.u.uid==='foundations')x.l.ex.forEach((e,i)=>{if(e.t!=='ar')pool.push({e,k:`${x.key}~${i}`})})}));start(shuffle(pool),{name:'Speed challenge',mode:'challenge',secs:60})};
+  $$('.weak').forEach(b=>b.onclick=()=>{if(!once(b))return;const L=lessonOf(b.dataset.k);start(shuffle(L.ex.map((e,i)=>({e,k:`${b.dataset.k}~${i}`}))),{name:'Practice: '+L.name,mode:'practice',pk:b.dataset.k})});
 }
 // ---------- interview ----------
 function ivHome(){cur='interview';daily();
@@ -213,9 +271,9 @@ function ivHome(){cur='interview';daily();
   <div class="ivgrid">${[['Quick screen',8,6],['Standard',12,10],['Full loop',18,15]].map(([n,q,m])=>`<button class="pcard ivs" data-q="${q}" data-m="${m}"><span class="pic">💼</span><span><b>${n}</b><small>${q} questions · ${m} min</small></span></button>`).join('')}</div>
   <h2 class="h2">Drill one topic</h2><p class="muted sm">Focus round: every question from one topic, 1 minute per question.</p><div class="chips">${tags.map(t=>`<button class="tag tbtn" data-tag="${esc(t)}">${t} · ${IV.filter(q=>q.tag===t).length}</button>`).join('')}</div>
   <p class="muted">Best score: <b>${S.stats.bestIv||0}%</b> · Interviews done: <b>${S.stats.interviews}</b></p>`);
-  $$('.ivs').forEach(b=>b.onclick=()=>{const java=shuffle(IV.map((e,i)=>({e,k:'iv-'+i})).filter(x=>x.e.track==='java')),oth=shuffle(IV.map((e,i)=>({e,k:'iv-'+i})).filter(x=>x.e.track!=='java'));const q=+b.dataset.q,no=Math.max(2,Math.round(q*.25));
+  $$('.ivs').forEach(b=>b.onclick=()=>{if(!once(b))return;const java=shuffle(IV.map((e,i)=>({e,k:'iv-'+i})).filter(x=>x.e.track==='java')),oth=shuffle(IV.map((e,i)=>({e,k:'iv-'+i})).filter(x=>x.e.track!=='java'));const q=+b.dataset.q,no=Math.max(2,Math.round(q*.25));
     start(shuffle(java.slice(0,q-no).concat(oth.slice(0,no))),{name:'Mock Interview',mode:'interview',secs:+b.dataset.m*60})});
-  $$('.tbtn').forEach(b=>b.onclick=()=>{const qs=shuffle(IV.map((e,i)=>({e,k:'iv-'+i})).filter(x=>x.e.tag===b.dataset.tag));start(qs,{name:'Topic drill: '+b.dataset.tag,mode:'interview',secs:qs.length*60})});
+  $$('.tbtn').forEach(b=>b.onclick=()=>{if(!once(b))return;const qs=shuffle(IV.map((e,i)=>({e,k:'iv-'+i})).filter(x=>x.e.tag===b.dataset.tag));start(qs,{name:'Topic drill: '+b.dataset.tag,mode:'interview',secs:qs.length*60})});
 }
 // ---------- shop ----------
 const ITEMS=[['hearts','❤️','Heart refill','Restore all 5 hearts now (otherwise +1 every 30 min, full at midnight)',30,()=>S.hearts<5,()=>{S.hearts=5;S.heartAt=null}],
@@ -228,12 +286,13 @@ function shop(){cur='shop';daily();
   <div class="inv">Your stuff: ✂️ ${S.inv.fifty||0} · ⏭️ ${S.inv.skip||0} · 🧊 ${S.freezes}/2 ${dblOn()?'· ⚡ active':''}</div>
   ${ITEMS.map(([id,ic,n,d,c,ok])=>{const ready=ok()&&S.gems>=c;const label=!ok()?(id==='hearts'?'Full':'Max'):S.gems<c?`Need ${c-S.gems}`:`💎 ${c}`;return `<div class="sitem"><span class="pic">${ic}</span><div><b>${n}</b><small>${d}</small></div><button class="btn sm buy" data-id="${id}" ${ready?'':'disabled'} aria-label="${esc(n)}: ${label}">${label}</button></div>`}).join('')}
   <h2 class="h2">How to earn gems</h2><ul class="muted earn"><li>Finish a lesson: +5 (perfect lesson: +10)</li><li>Hit your daily goal: +10</li><li>Every 7-day streak: +20</li><li>Mock interview: +2 per correct answer</li><li>Speed challenge: +1 per correct answer</li></ul>`);
-  $$('.buy').forEach(b=>b.onclick=()=>{const it=ITEMS.find(x=>x[0]===b.dataset.id);if(S.gems<it[4]||!it[5]())return;S.gems-=it[4];it[6]();S.stats.bought=(S.stats.bought||0)+1;sfx.coin();buzz(20);toast(`${it[1]} ${it[2]} purchased!`);checkBadges();save();shop()})}
+  $$('.buy').forEach(b=>b.onclick=()=>{const it=ITEMS.find(x=>x[0]===b.dataset.id);if(!it||S.gems<it[4]||!it[5]()||buyLock[it[0]])return;buyLock[it[0]]=true;queueMicrotask(()=>{buyLock[it[0]]=false});S.gems-=it[4];it[6]();S.stats.bought=(S.stats.bought||0)+1;sfx.coin();buzz(20);toast(`${it[1]} ${it[2]} purchased!`);checkBadges();save();shop()})}
 // ---------- profile ----------
+const buyLock={},tapLock={};let addLock=false;
 function profile(){cur='profile';daily();
-  const days=[...Array(7)].map((_,i)=>iso(Date.now()-(6-i)*DAY)),mx=Math.max(S.goal,...days.map(d=>S.xpLog[d]||0));
-  const week=d=>[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[iso(Date.now()-(i+d)*DAY)]||0),0),tw=week(0),lw=week(7);
-  const dow=new Date().getDay(),cal=[...Array(35)].map((_,i)=>{const off=dow+28-i;return off<0?null:iso(Date.now()-off*DAY)}).slice(0);const lv=level();
+  const days=[...Array(7)].map((_,i)=>shiftDay(-(6-i))),mx=Math.max(S.goal,...days.map(d=>S.xpLog[d]||0));
+  const week=d=>[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[shiftDay(-(i+d))]||0),0),tw=week(0),lw=week(7);
+  const dow=new Date().getDay(),cal=[...Array(35)].map((_,i)=>{const off=dow+28-i;return off<0?null:shiftDay(-off)}).slice(0);const lv=level();
   const acc=S.stats.answered?Math.round(S.stats.correct/S.stats.answered*100):0;
   const others=Object.values(P.list).filter(p=>p.id!==S.id);
   shell(`<section class="phead"><button class="avatar big" id="edit" aria-label="Edit profile">${esc(S.avatar)}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small><br><button class="link" id="edit2">Edit profile</button></div></section>
@@ -246,12 +305,12 @@ function profile(){cur='profile';daily();
   <h2 class="h2">Achievements · ${Object.keys(S.badges).length}/${BADGES.length}</h2><div class="badges" role="list">${BADGES.map(([id,ic,n,d,,pr])=>{const got=S.badges[id],pv=!got&&pr?pr():null;return `<div class="badge ${got?'got':''}" role="listitem" aria-label="${esc(n)}: ${esc(d)}. ${got?'Unlocked':'Locked'+(pv?`, ${Math.min(pv[0],pv[1])} of ${pv[1]}`:'')}"><span aria-hidden="true">${got?ic:'🔒'}</span><b>${n}</b><small>${d}</small>${got?`<small class="bdate">✓ ${got>1e12?new Date(got).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'Unlocked'}</small>`:pv?`<div class="bprog" aria-hidden="true"><i style="width:${Math.min(100,pv[0]/pv[1]*100)}%"></i></div><small class="bdate">${Math.min(pv[0],pv[1])}/${pv[1]}</small>`:''}</div>`}).join('')}</div>
   <h2 class="h2">Profiles on this device</h2>${others.map(p=>`<div class="sitem"><span class="pic">${esc(p.avatar)}</span><div><b>${esc(p.name)}</b><small>${p.xp} XP · 🔥 ${p.streak}</small></div><button class="btn sm alt sw" data-id="${p.id}">Switch</button></div>`).join('')}
   <button class="btn alt" id="addp">＋ Add profile</button>`);
-  $('#edit').onclick=$('#edit2').onclick=()=>editProfile(false);$('#recap').onclick=recap;
-  $('#addp').onclick=()=>{const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p;save();onboard()};
-  $$('.sw').forEach(b=>b.onclick=()=>{P.active=b.dataset.id;S=P.list[P.active];save();daily();toast(`Switched to ${S.name}`);home()});
+  $('#edit').onclick=$('#edit2').onclick=()=>{if(!once($('#edit2')))return;editProfile(false)};$('#recap').onclick=()=>{if(!once($('#recap')))return;recap()};
+  $('#addp').onclick=()=>{if(addLock)return;addLock=true;queueMicrotask(()=>{addLock=false});const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p;save();onboard()};
+  $$('.sw').forEach(b=>b.onclick=()=>{if(!once(b))return;P.active=b.dataset.id;S=P.list[P.active];save();daily();toast(`Switched to ${S.name}`);land('learn')});
 }
-function recap(){cur='profile';daily();
-  const ds=[...Array(7)].map((_,i)=>iso(Date.now()-(6-i)*DAY)),xp=d=>S.xpLog[d]||0,tw=ds.reduce((a,d)=>a+xp(d),0),lw=[...Array(7)].reduce((a,_,i)=>a+xp(iso(Date.now()-(i+7)*DAY)),0);
+function recap(){cur='profile';daily();histPush({screen:'recap'});
+  const ds=[...Array(7)].map((_,i)=>shiftDay(-(6-i))),xp=d=>S.xpLog[d]||0,tw=ds.reduce((a,d)=>a+xp(d),0),lw=[...Array(7)].reduce((a,_,i)=>a+xp(shiftDay(-(i+7))),0);
   const act=ds.filter(d=>xp(d)>0).length,best=ds.reduce((b,d)=>xp(d)>xp(b)?d:b,ds[6]),dl7=ds.map(d=>(S.dlog||{})[d]||{l:0,a:0,c:0}),les=dl7.reduce((a,x)=>a+x.l,0),ans=dl7.reduce((a,x)=>a+x.a,0),cor=dl7.reduce((a,x)=>a+x.c,0);
   const wkStart=Date.now()-7*DAY,nb=BADGES.filter(([id])=>S.badges[id]>1e12&&S.badges[id]>wkStart),goals=ds.filter(d=>xp(d)>=S.goal).length,dn=due().length;
   const weak=Object.entries(S.misses).filter(([k])=>lessonOf(k)).sort((a,b)=>b[1]-a[1])[0];
@@ -261,8 +320,8 @@ function recap(){cur='profile';daily();
   <div class="sgrid"><div class="scard">📆<b>${act}/7</b>Active days</div><div class="scard">🎯<b>${goals}</b>Goals hit</div><div class="scard">📚<b>${les}</b>Lessons</div><div class="scard">✅<b>${ans?Math.round(cor/ans*100)+'%':'—'}</b>Accuracy</div><div class="scard">🔥<b>${S.streak}</b>Streak</div><div class="scard">🏅<b>${nb.length}</b>New badges</div></div>
   <h2 class="h2">Highlights</h2><ul class="hl">${tw?`<li>🌟 Best day: <b>${new Date(best+'T12:00').toLocaleDateString(undefined,{weekday:'long'})}</b> with ${xp(best)} XP</li>`:''}${nb.map(([,ic,n])=>`<li>${ic} Unlocked <b>${n}</b></li>`).join('')}<li>${tw>=lw?'📈':'📉'} Last week: ${lw} XP</li>${weak?`<li>🎯 Most-missed topic: <b>${esc(lessonOf(weak[0]).name)}</b></li>`:''}</ul>
   <h2 class="h2">Next week</h2>${dn?`<button class="pcard" id="rr"><span class="pic">🔁</span><span><b>Clear your review queue</b><small>${plural(dn,'question')} due</small></span></button>`:'<div class="empty"><span aria-hidden="true">✅</span><p>No review is waiting. A missed question will land here when it is due.</p></div>'}<button class="pcard" id="gl"><span class="pic">🌱</span><span><b>Continue learning</b><small>Pick up where you left off</small></span></button>`);
-  $('#bk').onclick=profile;$('#gl').onclick=home;$('#rr')&&($('#rr').onclick=practice)}
-function editProfile(isNew){let av=S.avatar;
+  $('#bk').onclick=()=>{if(!once($('#bk')))return;navBack(profile)};$('#gl').onclick=()=>{if(!once($('#gl')))return;go('learn')};$('#rr')&&($('#rr').onclick=()=>{if(!once($('#rr')))return;go('practice')})}
+function editProfile(isNew){let av=S.avatar;histPush({screen:'edit',fresh:!!isNew});
   app.className='';app.innerHTML=`<main class="fade onb"><h1 class="h1">${isNew?'Welcome to ByteRyte 🌱':'Edit profile'}</h1>${isNew?'<p class="muted">Learn the fundamentals behind the code you ship — Java first, with JavaFX, HTML/CSS and Swift branches.</p>':''}
   <label class="lbl" for="nm">Your name</label><input id="nm" class="inp" maxlength="24" value="${esc(S.name==='Learner'&&isNew?'':S.name)}" placeholder="e.g. Alex" autocomplete="nickname">
   <div class="lbl">Pick an avatar</div><div class="avs" role="radiogroup">${AVATARS.map(a=>`<button role="radio" aria-checked="${a===av}" class="avatar ${a===av?'on':''}" data-a="${a}">${a}</button>`).join('')}</div>
@@ -271,10 +330,10 @@ function editProfile(isNew){let av=S.avatar;
   $$('.avs .avatar').forEach(b=>b.onclick=()=>{av=b.dataset.a;$$('.avs .avatar').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-checked',x===b)})});
   $$('.goal').forEach(b=>b.onclick=()=>{S.goal=+b.dataset.g;$$('.goal').forEach(x=>x.classList.toggle('sel',x===b))});
   const commit=()=>{S.name=($('#nm').value.trim()||'Learner').slice(0,24);S.avatar=av;S.onboarded=true;save()};
-  $('#sv').onclick=()=>{commit();isNew?home():profile()};
-  $('#cx')&&($('#cx').onclick=profile);
-  $('#pl')&&($('#pl').onclick=()=>{commit();const pool=[];lessons(T('java')).filter(x=>DRILL.includes(x.key)).forEach(x=>{const e=x.l.ex.filter(e=>e.t!=='ar');pool.push(...shuffle(e).slice(0,2).map((e)=>({e,k:x.key+'~'+x.l.ex.indexOf(e)})))});start(pool,{name:'Placement test',mode:'placement'})});
-  $('#del')&&($('#del').onclick=()=>{if(!confirm(`Delete ${S.name}'s profile? This cannot be undone.`))return;delete P.list[S.id];P.active=Object.keys(P.list)[0];S=P.list[P.active];save();home()});
+  $('#sv').onclick=()=>{if(!once($('#sv')))return;commit();if(isNew)land('learn');else navBack(profile)};
+  $('#cx')&&($('#cx').onclick=()=>{if(!once($('#cx')))return;navBack(profile)});
+  $('#pl')&&($('#pl').onclick=()=>{if(!once($('#pl')))return;commit();try{history.replaceState({br:1,screen:'learn'},'')}catch(e){}cur='learn';const pool=[];lessons(T('java')).filter(x=>DRILL.includes(x.key)).forEach(x=>{const e=x.l.ex.filter(e=>e.t!=='ar');pool.push(...shuffle(e).slice(0,2).map((e)=>({e,k:x.key+'~'+x.l.ex.indexOf(e)})))});start(pool,{name:'Placement test',mode:'placement'})});
+  $('#del')&&($('#del').onclick=()=>{if(!once($('#del')))return;if(!confirm(`Delete ${S.name}'s profile? This cannot be undone.`))return;delete P.list[S.id];P.active=Object.keys(P.list)[0];S=P.list[P.active];save();land('learn')});
 }
 const onboard=()=>editProfile(true);
 // ---------- settings ----------
@@ -289,23 +348,26 @@ function settings(){cur='settings';daily();
   <div class="set"><b>Keyboard shortcuts (desktop)</b><p class="muted">1–9 choose an answer (or a code line in Arrange) · Backspace undo last line · Enter check / continue · H 50/50 · S skip · Esc quit</p></div>
   <div class="set"><b>Danger zone</b><button class="btn sm red" id="rs">Reset ${esc(S.name)}'s progress</button></div>
   <p class="note">ByteRyte · original app, not affiliated with any other language-learning brand. All data stays on this device.</p>`);
-  $$('[data-th]').forEach(b=>b.onclick=()=>{G.theme=b.dataset.th;saveG();applyTheme();settings()});
-  $('#snd').onclick=()=>{G.sound=!G.sound;saveG();settings()};
-  $('#big').onclick=()=>{G.big=!G.big;saveG();applyTheme();settings()};
-  $('#ua').onclick=()=>{S.unlockAll=!S.unlockAll;save();settings()};
-  $$('[data-g]').forEach(b=>b.onclick=()=>{S.goal=+b.dataset.g;save();settings()});
+  $$('[data-th]').forEach(b=>b.onclick=()=>{if(!tap('theme-'+b.dataset.th))return;G.theme=b.dataset.th;saveG();applyTheme();settings()});
+  $('#snd').onclick=()=>{if(!tap('sound'))return;G.sound=!G.sound;saveG();settings()};
+  $('#big').onclick=()=>{if(!tap('big'))return;G.big=!G.big;saveG();applyTheme();settings()};
+  $('#ua').onclick=()=>{if(!tap('unlock'))return;S.unlockAll=!S.unlockAll;save();settings()};
+  $$('[data-g]').forEach(b=>b.onclick=()=>{if(!tap('goal'))return;S.goal=+b.dataset.g;save();settings()});
   $('#exp').onclick=()=>{const blob=new Blob([JSON.stringify({app:'ByteRyte',v:2,profiles:P,settings:G},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`byteroots-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
-  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!d.profiles?.list)throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(d.settings&&typeof d.settings==='object'){G=Object.assign({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}save();daily();toast('✅ Progress imported');home()}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
-  $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;S=n;save();home()}};
+  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
+  $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;S=n;save();land('learn')}};
 }
 // ---------- lesson engine ----------
 let R,timerId;
+function once(el){if(!el)return false;const n=Date.now();if(el.__t&&n-el.__t<450)return false;el.__t=n;return true}
+function tap(id){if(tapLock[id])return false;tapLock[id]=true;queueMicrotask(()=>{tapLock[id]=false});return true}
 function start(items,opt){
-  clearInterval(timerId);daily();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0)return outOfHearts();
+  clearInterval(timerId);daily();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0){histPush({screen:'hearts'});return outOfHearts()}
   R=Object.assign({q:items.slice(),total:items.length,done:0,correct:0,mist:new Set(),res:[],t0:Date.now()},opt);
+  histPush({screen:'session',back:cur});
   if(R.mode==='challenge'||R.mode==='interview'){R.end=Date.now()+R.secs*1000;timerId=setInterval(tick,250)}
   app.className='';if(R.tip){app.innerHTML=`<header class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar"><i style="width:0"></i></div></header><main class="fade"><div class="kind">💡 Before you start</div><h1 class="h1">${esc(R.name)}</h1><div class="tip">${esc(R.tip)}</div>${sheetHTML(R.sheet)}<p class="muted">${R.total} exercises · mistakes come back at the end and in Review.</p></main><footer class="foot"><div class="in"><button class="btn" id="go">Start lesson</button></div></footer>`;
-    $('#x').onclick=home;$('#go').onclick=next;$('#go').focus()}else next();
+    $('#x').onclick=()=>{clearInterval(timerId);R=null;navBack(home)};$('#go').onclick=()=>{if(!once($('#go')))return;next()};$('#go').focus()}else next();
 }
 function tick(){const left=Math.max(0,R.end-Date.now()),el=$('#tmr');if(el){el.textContent=`⏱ ${Math.floor(left/60000)}:${String(Math.floor(left/1000)%60).padStart(2,'0')}`;el.classList.toggle('warn',left<10000)}if(!left){clearInterval(timerId);finish(true)}}
 const timed=()=>R.mode==='challenge'||R.mode==='interview',noHearts=()=>R.mode==='saved'||R.mode==='interview'||R.mode==='challenge'||R.mode==='placement'||R.mode==='review';
@@ -328,15 +390,15 @@ function next(){
   const chk=$('#chk');
   if(e.t==='ar'){const bank=$('#bank'),ans=$('#ans');
     shuffle(e.lines.map((x,i)=>[x,i])).forEach(([x])=>{const c=document.createElement('button');c.className='chip';c.innerHTML=hl(x);c.dataset.raw=x;c.onclick=()=>{$('.ph')?.remove();(c.parentNode===bank?ans:bank).appendChild(c);chk.disabled=bank.children.length>0;tone(520,.04)};bank.appendChild(c)});
-    chk.onclick=()=>judge([...ans.children].map(c=>c.dataset.raw).join('\n')===e.lines.join('\n'),e.lines.join('\n'))}
-  else{$$('.opt').forEach(b=>b.onclick=()=>{if(b.disabled)return;$$('.opt').forEach(o=>{o.classList.remove('sel');o.setAttribute('aria-checked','false')});b.classList.add('sel');b.setAttribute('aria-checked','true');sel=+b.dataset.i;chk.disabled=false;tone(520,.04)});
-    chk.onclick=()=>{$$('.opt').forEach(o=>{o.disabled=true;if(+o.dataset.i===e.a)o.classList.add('right');else if(+o.dataset.i===sel)o.classList.add('wrong')});
+    chk.onclick=()=>{if(!once(chk))return;judge([...ans.children].map(c=>c.dataset.raw).join('\n')===e.lines.join('\n'),e.lines.join('\n'))}}
+  else{$$('.opt').forEach(b=>b.onclick=()=>{if(b.disabled||!once(b))return;$$('.opt').forEach(o=>{o.classList.remove('sel');o.setAttribute('aria-checked','false')});b.classList.add('sel');b.setAttribute('aria-checked','true');sel=+b.dataset.i;chk.disabled=false;tone(520,.04)});
+    chk.onclick=()=>{if(!once(chk))return;$$('.opt').forEach(o=>{o.disabled=true;if(+o.dataset.i===e.a)o.classList.add('right');else if(+o.dataset.i===sel)o.classList.add('wrong')});
       judge(sel===e.a,e.t==='bug'?`Line ${e.a+1}: ${e.lines[e.a].trim()}`:e.opts[e.a])}}
-  if($('#ff'))$('#ff').onclick=()=>{if(!S.inv.fifty)return;const wrong=shuffle($$('.opt').filter(o=>+o.dataset.i!==e.a&&!o.disabled)).slice(0,2);wrong.forEach(o=>{o.disabled=true;o.classList.add('gone');o.classList.remove('sel')});let n=1;$$('.opt').forEach(o=>{const kbd=o.querySelector('kbd');if(!kbd)return;kbd.textContent=o.disabled?'':String(n++)});if(wrong.some(o=>+o.dataset.i===sel)){sel=null;chk.disabled=true}S.inv.fifty--;save();$('#ff').disabled=true;$('#ff b').textContent=S.inv.fifty;buzz(12)};
-  if($('#sk'))$('#sk').onclick=()=>{S.inv.skip--;save();R.q.shift();R.done++;R.res.push({e,ok:null});toast('⏭️ Skipped');next()};
+  if($('#ff'))$('#ff').onclick=()=>{if(!once($('#ff'))||!S.inv.fifty)return;const wrong=shuffle($$('.opt').filter(o=>+o.dataset.i!==e.a&&!o.disabled)).slice(0,2);wrong.forEach(o=>{o.disabled=true;o.classList.add('gone');o.classList.remove('sel')});let n=1;$$('.opt').forEach(o=>{const kbd=o.querySelector('kbd');if(!kbd)return;kbd.textContent=o.disabled?'':String(n++)});if(wrong.some(o=>+o.dataset.i===sel)){sel=null;chk.disabled=true}S.inv.fifty--;save();$('#ff').disabled=true;$('#ff b').textContent=S.inv.fifty;buzz(12)};
+  if($('#sk'))$('#sk').onclick=()=>{if(!once($('#sk')))return;S.inv.skip--;save();R.q.shift();R.done++;R.res.push({e,ok:null});toast('⏭️ Skipped');next()};
 }
 function shield(ms=450){const ft=$('#ft');if(!ft)return;ft.style.pointerEvents='none';const token=String(Date.now()+Math.random());ft.dataset.shield=token;setTimeout(()=>{if(ft.isConnected&&ft.dataset.shield===token)ft.style.pointerEvents=''},ms)}
-function quit(){if(confirm('Quit? Progress in this session will be lost.')){clearInterval(timerId);R=null;home()}}
+function quit(){if(confirm('Quit? Progress in this session will be lost.')){clearInterval(timerId);R=null;navBack(home)}}
 function judge(ok,ans){
   const it=R.q.shift(),{e,k}=it,first=!R.mist.has(k);
   S.stats.answered++;if(ok)S.stats.correct++;{const x=dl();x.a++;if(ok)x.c++}
@@ -356,10 +418,10 @@ function judge(ok,ans){
   $('#bm').onclick=()=>{if(S.saved[k])delete S.saved[k];else S.saved[k]=Date.now();save();const on=!!S.saved[k];$('#bm').textContent=on?'★ Saved':'☆ Save question';$('#bm').setAttribute('aria-pressed',on);if(on){S.stats.saved=(S.stats.saved||0)+1;checkBadges()}};
   requestAnimationFrame(()=>requestAnimationFrame(()=>ft.classList.add('show')));shield();
   $('#cont').focus({preventScroll:true});
-  $('#cont').onclick=()=>{if(!ok&&!noHearts()){daily();if(S.hearts<=0){clearInterval(timerId);return outOfHearts()}}next()};
+  $('#cont').onclick=()=>{if(!once($('#cont')))return;if(!ok&&!noHearts()){daily();if(S.hearts<=0){clearInterval(timerId);return outOfHearts()}}next()};
 }
-function outOfHearts(){daily();if(S.hearts>0)return home();shell(`<div class="center"><div class="big">💔</div><h1 class="h1">Out of hearts</h1><p class="muted">You get 1 heart back every 30 minutes${nextHeart()?` (next in <b>${nextHeart()}</b>)`:''}, and all 5 at midnight. Review, interviews, and speed challenges do not cost hearts.</p>${S.gems<30?`<p class="muted sm">A refill costs 30 gems. You have ${S.gems}.</p>`:''}<button class="btn" id="buyh" ${S.gems<30?'disabled':''}>Refill for 💎 30</button><button class="btn alt" id="pr" style="margin-top:12px">Practice mistakes instead</button></div>`);
-  $('#buyh').onclick=()=>{if(S.gems<30)return;S.gems-=30;S.hearts=5;S.heartAt=null;S.stats.bought=(S.stats.bought||0)+1;sfx.coin();checkBadges();save();home()};$('#pr').onclick=practice}
+function outOfHearts(){daily();clearInterval(timerId);R=null;if(S.hearts>0)return land('learn');if(!(history.state&&history.state.br===1&&history.state.screen==='hearts')){try{history.replaceState({br:1,screen:'hearts'},'')}catch(e){}}shell(`<div class="center"><div class="big">💔</div><h1 class="h1">Out of hearts</h1><p class="muted">You get 1 heart back every 30 minutes${nextHeart()?` (next in <b>${nextHeart()}</b>)`:''}, and all 5 at midnight. Review, interviews, and speed challenges do not cost hearts.</p>${S.gems<30?`<p class="muted sm">A refill costs 30 gems. You have ${S.gems}.</p>`:''}<button class="btn" id="buyh" ${S.gems<30?'disabled':''}>Refill for 💎 30</button><button class="btn alt" id="pr" style="margin-top:12px">Practice mistakes instead</button></div>`);
+  $('#buyh').onclick=()=>{if(!once($('#buyh'))||S.gems<30)return;S.gems-=30;S.hearts=5;S.heartAt=null;S.stats.bought=(S.stats.bought||0)+1;sfx.coin();checkBadges();save();land('learn')};$('#pr').onclick=()=>{if(!once($('#pr')))return;go('practice')}}
 function finish(timeUp){
   clearInterval(timerId);if(!R)return;daily();const m=R.mode;
   let xp=0,gem=0,title='Lesson complete!',extra='';
@@ -376,7 +438,7 @@ function finish(timeUp){
   shell(`<div class="center finish"><div class="trophy" aria-hidden="true"><div class="big">${m==='challenge'?'⏱️':m==='placement'?'🧭':'🏆'}</div></div><h1 class="h1">${title}</h1><p class="muted">${esc(R.name)}</p>
   <div class="cards"><div class="card xp">⚡<b>+${xp}</b>XP</div><div class="card">${m==='challenge'?'✅':'🎯'}<b>${m==='challenge'?R.correct:acc+'%'}</b>${m==='challenge'?'correct':'accuracy'}</div><div class="card gem">💎<b>+${gem}</b>gems</div></div>${extra}<p class="muted sm">⏱ ${Math.floor(secs/60)}m ${secs%60}s</p>
   ${R.mist.size&&m!=='placement'?`<p class="muted">${plural(R.mist.size,'missed question')} saved to Review.</p>`:m==='lesson'&&!skipped?'<p class="pill up">Flawless — 10 gems</p>':''}</div>`,{nav:false});
-  app.insertAdjacentHTML('beforeend','<footer class="foot"><div class="in"><button class="btn" id="h">Continue</button></div></footer>');$('#h').onclick=home;$('#h').focus();
+  app.insertAdjacentHTML('beforeend','<footer class="foot"><div class="in"><button class="btn" id="h">Continue</button></div></footer>');$('#h').onclick=()=>{if(!once($('#h')))return;navBack(home)};$('#h').focus();
   confetti();
 }
 function ivSummary(timeUp){
@@ -390,7 +452,7 @@ function ivSummary(timeUp){
   <div class="cards"><div class="card xp">⚡<b>+${xp}</b>XP</div><div class="card gem">💎<b>+${gem}</b>gems</div></div></div>
   <h2 class="h2">By topic</h2>${Object.entries(byTag).map(([t,[c,n]])=>`<div class="trow"><span>${t}</span><div class="bar"><i style="width:${c/n*100}%"></i></div><b>${c}/${n}</b></div>`).join('')}
   <h2 class="h2">Review your answers</h2>${R.res.map((r,i)=>`<details class="rev ${r.ok?'ok':'no'}"><summary>${r.ok?'✅':r.ok===null?'⏭️':'❌'} Q${i+1} · ${esc(r.e.tag)} — ${esc((r.e.q||'Predict the output').slice(0,60))}</summary>${r.e.code?`<pre class="code sm" tabindex="0">${hl(r.e.code)}</pre>`:''}${r.e.t==='ar'?`<p><b>Answer:</b></p><pre class="code sm" tabindex="0">${hl(r.e.lines.join('\n'))}</pre>`:`<p><b>Answer:</b> ${esc(r.e.t==='bug'?'Line '+(r.e.a+1)+': '+r.e.lines[r.e.a].trim():r.e.opts[r.e.a])}</p>`}<p>${esc(r.e.why)}</p></details>`).join('')}`,{nav:false});
-  app.insertAdjacentHTML('beforeend','<footer class="foot"><div class="in"><button class="btn" id="h">Done</button></div></footer>');$('#h').onclick=ivHome;
+  app.insertAdjacentHTML('beforeend','<footer class="foot"><div class="in"><button class="btn" id="h">Done</button></div></footer>');$('#h').onclick=()=>{if(!once($('#h')))return;navBack(ivHome)};
   if(pct>=70)confetti();
 }
 function confetti(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;for(let i=0;i<48;i++){const c=document.createElement('div');c.className='conf';c.style.left=Math.random()*100+'vw';c.style.background=['#16a34a','#f97316','#0ea5e9','#8b5cf6','#facc15','#ef4444'][i%6];c.style.animationDelay=Math.random()*.6+'s';c.style.animationDuration=1.4+Math.random()+'s';document.body.appendChild(c);setTimeout(()=>c.remove(),3200)}}
@@ -406,6 +468,8 @@ document.addEventListener('keydown',ev=>{if(ev.target.tagName==='INPUT')return;c
 // ---------- boot ----------
 if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p;save()}
 daily();
-S.onboarded?home():onboard();
+armHistory();
+addEventListener('popstate',onPop);
+histLock=true;restore(history.state);histLock=false;
 window.__BR={get S(){return S},P:()=>P,cur:()=>R&&R.q[0]&&R.q[0].e};
 })();

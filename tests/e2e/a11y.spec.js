@@ -17,7 +17,7 @@ const pages = [
 
 for (const [name, open] of pages) {
   test('axe ' + name, async ({ page }, testInfo) => {
-    test.skip(!isDeep(testInfo), 'axe runs on phone-dark and desk-light');
+    test.skip(!isDeep(testInfo), 'axe runs on all four projects');
     await boot(page, testInfo);
     await open(page);
     const results = await new AxeBuilder({ page }).analyze();

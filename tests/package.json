@@ -2,8 +2,8 @@
   "name": "byteryte-tests",
   "private": true,
   "scripts": {
-    "test": "node validate-data.js && node validate-static.js && node validate-docs.js && node validate-java.js && node validate-swift.js && playwright test",
-    "test:data": "node validate-data.js && node validate-static.js && node validate-docs.js && node validate-java.js && node validate-swift.js",
+    "test": "node validate-data.js && node validate-static.js && node validate-docs.js && node validate-java.js && node validate-swift.js && node validate-ambiguity.js && node validate-perf.js && playwright test",
+    "test:data": "node validate-data.js && node validate-static.js && node validate-docs.js && node validate-java.js && node validate-swift.js && node validate-ambiguity.js && node validate-perf.js",
     "test:ui": "playwright test",
     "test:ui:deep": "playwright test --project=desk-light --project=phone-dark"
   },
