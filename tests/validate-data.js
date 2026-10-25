@@ -143,6 +143,29 @@ lacks('new code should not use it');
 has('NavigationView is deprecated');
 lacks('display: none (and visibility: hidden) remove');
 has('Among these four, only display: none');
+lacks('Interfaces may only have constants');
+has('An interface cannot hold instance fields');
+lacks('Class::method is shorthand');
+has('bound instance method reference');
+lacks('An enum would erase the fields');
+has('not two records that keep different fields');
+lacks('null-safe on the left');
+has('does not throw if either side is null');
+has('Error is also unchecked');
+
+function keyed(prefix, choice) {
+  const hits = [];
+  const take = e => { if (e.q && e.q.startsWith(prefix)) hits.push(e); };
+  for (const t of TRACKS) for (const u of t.units) for (const l of u.lessons) l.ex.forEach(take);
+  IV.forEach(take);
+  if (hits.length !== 1) bad('keyed lookup ' + prefix + ' hits ' + hits.length);
+  else if (!hits[0].opts || hits[0].opts[hits[0].a] !== choice) bad(prefix + ' answer ' + (hits[0].opts && hits[0].opts[hits[0].a]));
+}
+keyed('getSelectedItem() when the user has not clicked anything returns', 'null');
+keyed('ListView.getSelectionModel().getSelectedItem() with nothing selected returns', 'null');
+keyed('Inside catch, the thrown value is available as', 'error');
+keyed('A button click is handled with', 'setOnAction');
+keyed('Comparing two enum constants with == is', 'Safe. Each constant is a singleton, and == does not throw if either side is null');
 
 if (issues.length) {
   console.error('validate-data FAIL ' + issues.length);

@@ -19,7 +19,7 @@ module.exports = {
     trace: 'retain-on-failure',
   },
   webServer: {
-    command: `rm -rf ${pages} && mkdir -p ${pages} && ln -sfn ${root} ${pages}/ByteRyte && bash -c 'cleanup(){ jobs -p | xargs -r kill; }; trap cleanup EXIT; trap "cleanup; exit 0" INT TERM; for p in ${Object.values(ports).join(' ')}; do python3 -m http.server $p --bind 127.0.0.1 --directory ${pages} & done; wait'`,
+    command: `rm -rf ${pages} && mkdir -p ${pages} && ln -sfn ${root} ${pages}/ByteRyte && bash -c 'cleanup(){ jobs -p | xargs -r kill; }; trap cleanup EXIT; trap "cleanup; exit 0" INT TERM; node ${root}/tests/gzip-server.js ${pages} 8881 & for p in ${Object.values(ports).join(' ')}; do python3 -m http.server $p --bind 127.0.0.1 --directory ${pages} & done; wait'`,
     url: `http://127.0.0.1:${ports['phone-light']}/ByteRyte/`,
     reuseExistingServer: false,
     timeout: 30000,

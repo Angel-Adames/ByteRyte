@@ -1,0 +1,2 @@
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js');
+setTimeout(()=>{const b=document.querySelector('.boot');if(!b)return;b.innerHTML='<span aria-hidden="true">🌱</span><b>ByteRyte</b><small>Still starting. Reload the page. If you are offline, open ByteRyte once while you have a connection so this device can keep a copy.</small>';},8000);

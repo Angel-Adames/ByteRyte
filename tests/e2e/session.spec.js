@@ -32,7 +32,6 @@ test('a second tab keeps a purchase and a goal change from the other tab', async
 });
 
 test('fifty lessons in a row leave the home screen the same size', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'desk-light', 'long soak runs once');
   test.setTimeout(300000);
   await boot(page, testInfo, { profile: { unlockAll: true, gems: 50 } });
   const nodes = () => page.evaluate(() => document.querySelectorAll('#app *').length);
@@ -72,7 +71,6 @@ test('fifty lessons in a row leave the home screen the same size', async ({ page
 });
 
 test('slow 4G and a 4x CPU still reach the daily goal', async ({ page }, testInfo) => {
-  test.skip(testInfo.project.name !== 'phone-light', 'throttle is measured once on the phone');
   const client = await page.context().newCDPSession(page);
   await client.send('Network.enable');
   await client.send('Network.emulateNetworkConditions', {
