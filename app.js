@@ -8,6 +8,7 @@ const today=()=>iso(),yday=()=>shiftDay(-1),dayDiff=(a,b)=>Math.round((new Date(
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random()*(i+1)|0;[a[i],a[j]]=[a[j],a[i]]}return a};
 const AVATARS=['🦊','🐼','🐙','🦉','🐸','🐯','🐨','🦄','🐧','🐳','🦖','🤖','👩‍💻','👨‍💻','🧑‍🚀','🐝'];
+const AVATAR_NAMES=['Fox','Panda','Octopus','Owl','Frog','Tiger','Koala','Unicorn','Penguin','Whale','Dinosaur','Robot','Woman at a computer','Man at a computer','Astronaut','Bee'];
 const NEWP=(name='Learner',avatar='🦊')=>({id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,avatar,xp:0,streak:0,best:0,last:null,hearts:5,heartDay:today(),done:{},review:{},misses:{},xpLog:{},gems:50,freezes:0,inv:{fifty:1,skip:1},doubleUntil:0,goal:30,goalDay:null,badges:{},saved:{},dlog:{},stats:{answered:0,correct:0,perfect:0,lessons:0,interviews:0,bestIv:0,reviews:0,challenges:0},onboarded:false,track:'java',unlockAll:false,created:Date.now(),curriculum:2,gates:{}});
 // ---------- storage + migration ----------
 const readStore=k=>{try{const t=localStorage.getItem(k);return t?JSON.parse(t):null}catch(e){return null}};
@@ -101,16 +102,22 @@ function hydrate(){
 hydrate();
 function writeStore(k,v){try{localStorage.setItem(k,v);return true}catch(e){toast('This browser blocked saving. Free some space and try again.');return false}}
 const saveG=()=>writeStore(GK,JSON.stringify(G));
-let syncing=false;
+let syncing=false,remoteNewer=false;
 const save=()=>{
   if(syncing)return true;
-  if(S)P.list[S.id]=S;
+  const mine=S,active=mine&&mine.id;
+  if(mine)P.list[mine.id]=mine;
   const latest=readStore(PK);
   if(latest&&typeof latest==='object'&&!Array.isArray(latest)&&(latest.rev||0)>(P.rev||0)){
-    P=latest;hydrate();
-    toast('Another tab saved newer progress. This tab is showing that copy.');
-    if(!R){const n=cur||'learn';cur='';show(n)}
-    return false;
+    if((R||remoteNewer)&&active&&mine){
+      P=latest;hydrate();
+      P.list[active]=mine;P.active=active;S=mine;remoteNewer=false;
+    }else{
+      P=latest;hydrate();remoteNewer=false;
+      toast('Another tab saved newer progress. This tab is showing that copy.');
+      if(!R){const n=cur||'learn';cur='';show(n)}
+      return false;
+    }
   }
   P.rev=(P.rev||0)+1;
   return writeStore(PK,JSON.stringify(P));
@@ -118,12 +125,14 @@ const save=()=>{
 const HREG=30*60*1000;
 function regen(){if(S.hearts>=5){S.heartAt=null;return}if(!S.heartAt){S.heartAt=Date.now();return}const n=Math.floor((Date.now()-S.heartAt)/HREG);if(n>0){S.hearts=Math.min(5,S.hearts+n);S.heartAt=S.hearts>=5?null:S.heartAt+n*HREG;save()}}
 function nextHeart(){if(S.hearts>=5||!S.heartAt)return '';const m=Math.max(1,Math.ceil((S.heartAt+HREG-Date.now())/60000));return `${m} min`}
-function daily(){ // refill hearts at midnight, streak freeze handling
+function heartsDue(){if(!S)return false;if(S.heartDay!==today())return true;if(S.hearts>=5||!S.heartAt)return false;return Date.now()-S.heartAt>=HREG}
+function daily(){ // refill hearts at midnight, streak freeze handling, then pay goals already earned
   if(!S)return;
   regen();
   if(S.heartDay!==today()){S.hearts=5;S.heartAt=null;S.heartDay=today()}
   if(S.last&&S.last!==today()&&S.last!==yday()){const miss=dayDiff(S.last,today())-1;
     if(miss>0&&S.freezes>=miss){S.freezes-=miss;S.last=yday();toast(`🧊 Streak freeze used (${miss}) — streak saved!`)}else if(miss>0)S.streak=0}
+  settleRewards();
   save()}
 // ---------- theme / sound / toast ----------
 const mq=matchMedia('(prefers-color-scheme: dark)');
@@ -178,8 +187,7 @@ const NAMES={mc:'Concept check',out:'Predict the output',fill:'Complete the code
 const dblOn=()=>S.doubleUntil>Date.now();
 function addXP(n){if(dblOn())n*=2;S.xp+=n;S.xpLog[today()]=(S.xpLog[today()]||0)+n;
   if(S.last!==today()){S.streak=S.last===yday()?S.streak+1:1;S.last=today();S.best=Math.max(S.best,S.streak);if(S.streak%7===0){gems(20,'7-day streak bonus')}}
-  if(S.goalDay!==today()&&S.xpLog[today()]>=S.goal){S.goalDay=today();gems(10,'Daily goal reached');}
-  qBump('xp',0);return n}
+  settleRewards();return n}
 function gems(n,why){S.gems+=n;if(why)toast(`💎 +${n} — ${why}`);sfx.coin()}
 // ---------- levels ----------
 function level(xp=S.xp){xp=Math.round(finite(xp,0,0,1e9));const T=n=>25*n*(n+3);let n=Math.floor((-3+Math.sqrt(9+xp/6.25))/2);if(!Number.isFinite(n)||n<0)n=0;if(n>100000)n=100000;while(n>0&&T(n)>xp)n--;while(T(n+1)<=xp&&n<100000)n++;return {L:n+1,into:xp-T(n),need:100+50*n}}
@@ -188,9 +196,11 @@ const compact=n=>{n=Math.round(finite(n,0,-1e12,1e12));const s=n<0?'-':'';n=Math
 const QPOOL={lessons:['📚','Complete 2 lessons',2],correct:['🎯','Get 15 answers right',15],perfect:['💯','Finish a lesson with no mistakes',1],chal:['⏱️','Get 5 right in speed challenges',5],review:['🔁','Finish a review or practice session',1],iv:['💼','Complete a mock interview',1]};
 function quests(){if(!S.qd||S.qd.day!==today()){const keys=Object.keys(QPOOL);let h=0;for(const c of today()+S.id)h=(h*31+c.charCodeAt(0))>>>0;const pick=[];while(pick.length<2){const k=keys[h%keys.length];if(!pick.includes(k))pick.push(k);h=(h*1103515245+12345)>>>0}S.qd={day:today(),ids:['xp',...pick],p:{},claimed:{},chest:false}}
   return S.qd.ids.map(id=>{const [ic,label,n]=id==='xp'?['⚡',`Earn ${S.goal} XP`,S.goal]:QPOOL[id];const v=id==='xp'?(S.xpLog[today()]||0):(S.qd.p[id]||0);return {id,ic,label,n,v:Math.min(v,n),done:v>=n}})}
-function qBump(m,n=1){quests();if(m!=='xp')S.qd.p[m]=(S.qd.p[m]||0)+n;const qs=quests();
+function claimQuests(){const qs=quests();
   qs.forEach(q=>{if(q.done&&!S.qd.claimed[q.id]){S.qd.claimed[q.id]=1;S.gems+=15;setTimeout(()=>{toast(`${q.ic} Quest complete: ${q.label} · +15 💎`);sfx.coin()},700)}});
   if(!S.qd.chest&&qs.every(q=>q.done)){S.qd.chest=true;S.gems+=25;setTimeout(()=>{toast('🎁 All daily quests done! +25 💎');sfx.coin()},1600)}}
+function settleRewards(){if(S.goalDay!==today()&&(S.xpLog[today()]||0)>=S.goal){S.goalDay=today();gems(10,'Daily goal reached')}claimQuests()}
+function qBump(m,n=1){quests();if(m!=='xp')S.qd.p[m]=(S.qd.p[m]||0)+n;claimQuests()}
 function questsHTML(){const qs=quests(),d=qs.filter(q=>q.done).length;return `<section class="quests"><div class="row"><b>Daily quests</b><span class="muted sm">${d}/3 · resets at midnight</span></div>${qs.map(q=>`<div class="quest ${q.done?'done':''}"><span class="qi">${q.done?'✅':q.ic}</span><div><div class="row"><span>${esc(q.label)}</span><small>${q.v}/${q.n}</small></div><div class="bar sm"><i style="width:${q.v/q.n*100}%"></i></div></div><span class="qr" title="Reward">💎15</span></div>`).join('')}<div class="chest ${S.qd.chest?'open':''}">${S.qd.chest?'🎁 Bonus chest opened: +25 💎':'🎁 Finish all 3 for a +25 💎 bonus chest'}</div></section>`}
 // ---------- badges ----------
 const BADGES=[
@@ -251,7 +261,7 @@ function restore(s){
   show(s.screen||'learn');
 }
 function onPop(ev){
-  clearInterval(timerId);R=null;
+  clearInterval(timerId);clearInterval(heartWatch);R=null;
   const s=ev.state;
   if(!s||s.br!==1){
     const screen=(cur==='guide'||cur==='edit')?'learn':(cur||'learn');
@@ -348,9 +358,9 @@ function profile(){cur='profile';daily();
   <button class="pcard" id="recap"><span class="pic">📅</span><span><b>Weekly recap</b><small>Your last 7 days at a glance</small></span></button>
   <h2 class="h2">XP this week</h2><div class="chart" role="img" aria-label="XP for the last 7 days">${days.map(d=>`<div class="col"><span class="v">${S.xpLog[d]||0}</span><div class="b ${(S.xpLog[d]||0)>=S.goal?'met':''}" style="height:${(S.xpLog[d]||0)/mx*100}%"></div><span>${new Date(d+'T12:00').toLocaleDateString(undefined,{weekday:'narrow'})}</span></div>`).join('')}<div class="goalline" style="bottom:calc(${S.goal/mx*100}% * .78 + 22px)"></div></div>
   <div class="league"><b>Weekly league: you vs. last week</b><div class="row"><span>This week</span><b>${tw} XP</b></div><div class="row"><span>Last week</span><b>${lw} XP</b></div><div class="pill ${tw>=lw?'up':''}">${tw>lw?'📈 Promoted pace! Beat last week by '+(tw-lw)+' XP':tw===lw?'Tied with last week':'📉 '+(lw-tw)+' XP to beat last week'}</div></div>
-  <h2 class="h2">Streak calendar</h2><div class="cal" role="img" aria-label="Activity calendar, last 5 weeks">${['S','M','T','W','T','F','S'].map(x=>`<span>${x}</span>`).join('')}${cal.map(d=>{if(!d)return '<i class="fut"></i>';const v=S.xpLog[d]||0;return `<i title="${d}: ${v} XP" class="l${v?v>=S.goal?3:v>=S.goal/2?2:1:0} ${d===today()?'today':''}"></i>`}).join('')}</div><div class="legend">Less <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i> More · goal met = darkest</div>
+  <h2 class="h2">Streak calendar</h2><div class="cal" role="img" aria-label="Activity calendar, last 5 weeks, Sunday through Saturday">${['Su','Mo','Tu','We','Th','Fr','Sa'].map(x=>`<span>${x}</span>`).join('')}${cal.map(d=>{if(!d)return '<i class="fut"></i>';const v=S.xpLog[d]||0;return `<i title="${d}: ${v} XP" class="l${v?v>=S.goal?3:v>=S.goal/2?2:1:0} ${d===today()?'today':''}"></i>`}).join('')}</div><div class="legend">Less <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i> More · goal met = darkest</div>
   <h2 class="h2">Achievements · ${Object.keys(S.badges).length}/${BADGES.length}</h2><div class="badges" role="list">${BADGES.map(([id,ic,n,d,,pr])=>{const got=S.badges[id],pv=!got&&pr?pr():null;return `<div class="badge ${got?'got':''}" role="listitem" aria-label="${esc(n)}: ${esc(d)}. ${got?'Unlocked':'Locked'+(pv?`, ${Math.min(pv[0],pv[1])} of ${pv[1]}`:'')}"><span aria-hidden="true">${got?ic:'🔒'}</span><b>${n}</b><small>${d}</small>${got?`<small class="bdate">✓ ${got>1e12?new Date(got).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'Unlocked'}</small>`:pv?`<div class="bprog" aria-hidden="true"><i style="width:${Math.min(100,pv[0]/pv[1]*100)}%"></i></div><small class="bdate">${Math.min(pv[0],pv[1])}/${pv[1]}</small>`:''}</div>`}).join('')}</div>
-  <h2 class="h2">Profiles on this device</h2>${others.map(p=>`<div class="sitem"><span class="pic">${esc(p.avatar)}</span><div><b>${esc(p.name)}</b><small>${p.xp} XP · 🔥 ${p.streak}</small></div><button class="btn sm alt sw" data-id="${esc(p.id)}">Switch</button></div>`).join('')}
+  <h2 class="h2">Profiles on this device</h2>${others.map(p=>`<div class="sitem"><span class="pic">${esc(p.avatar)}</span><div><b>${esc(p.name)}</b><small>${p.xp} XP · 🔥 ${p.streak}</small></div><button class="btn sm alt sw" data-id="${esc(p.id)}" aria-label="Switch to ${esc(p.name)}">Switch</button></div>`).join('')}
   <button class="btn alt" id="addp">＋ Add profile</button>`);
   $('#edit').onclick=$('#edit2').onclick=()=>{if(!once($('#edit2')))return;editProfile(false)};$('#recap').onclick=()=>{if(!once($('#recap')))return;recap()};
   $('#addp').onclick=()=>{if(addLock)return;addLock=true;queueMicrotask(()=>{addLock=false});const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p;save();onboard()};
@@ -371,7 +381,7 @@ function recap(){cur='profile';daily();histPush({screen:'recap'});
 function editProfile(isNew){let av=S.avatar;histPush({screen:'edit',fresh:!!isNew});
   app.className='';app.innerHTML=`<main class="fade onb"><h1 class="h1">${isNew?'Welcome to ByteRyte 🌱':'Edit profile'}</h1>${isNew?'<p class="muted">Learn the fundamentals behind the code you ship — Java first, with JavaFX, HTML/CSS and Swift branches.</p>':''}
   <label class="lbl" for="nm">Your name</label><input id="nm" class="inp" maxlength="24" value="${esc(S.name==='Learner'&&isNew?'':S.name)}" placeholder="e.g. Alex" autocomplete="nickname">
-  <div class="lbl">Pick an avatar</div><div class="avs" role="radiogroup">${AVATARS.map(a=>`<button role="radio" aria-checked="${a===av}" class="avatar ${a===av?'on':''}" data-a="${a}">${a}</button>`).join('')}</div>
+  <div class="lbl">Pick an avatar</div><div class="avs" role="radiogroup" aria-label="Pick an avatar">${AVATARS.map((a,i)=>`<button role="radio" aria-checked="${a===av}" aria-label="${AVATAR_NAMES[i]} avatar" class="avatar ${a===av?'on':''}" data-a="${a}">${a}</button>`).join('')}</div>
   <div class="lbl">Daily goal</div><div class="goals">${[[10,'Casual'],[30,'Regular'],[50,'Serious'],[100,'Intense']].map(([g,n])=>`<button class="opt goal ${S.goal===g?'sel':''}" data-g="${g}"><b>${n}</b> · ${g} XP/day</button>`).join('')}</div>
   ${isNew?`<button class="btn" id="sv">Start from scratch</button><button class="btn alt" id="pl" style="margin-top:12px">Take placement test (skip the Java language drill)</button>`:`<button class="btn" id="sv">Save</button>${Object.keys(P.list).length>1?'<button class="btn red" id="del" style="margin-top:12px">Delete this profile</button>':''}<button class="btn alt" id="cx" style="margin-top:12px">Cancel</button>`}</main>`;
   $$('.avs .avatar').forEach(b=>b.onclick=()=>{av=b.dataset.a;$$('.avs .avatar').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-checked',x===b)})});
@@ -391,7 +401,7 @@ function settings(){cur='settings';daily();
   <div class="set row"><b>Sound effects</b><button class="switch ${G.sound?'on':''}" id="snd" role="switch" aria-checked="${G.sound}" aria-label="Sound effects"><i></i></button></div>
   <div class="set row"><div><b>Larger text</b><p class="muted" style="margin:2px 0 0">Bigger type and buttons for readability</p></div><button class="switch ${G.big?'on':''}" id="big" role="switch" aria-checked="${G.big}" aria-label="Larger text"><i></i></button></div>
   <div class="set row"><b>Unlock all lessons</b><button class="switch ${S.unlockAll?'on':''}" id="ua" role="switch" aria-checked="${S.unlockAll}" aria-label="Unlock all lessons"><i></i></button></div>
-  <div class="set"><b>Daily goal</b><div class="seg">${[10,30,50,100].map(g=>`<button class="${S.goal===g?'on':''}" data-g="${g}">${g} XP</button>`).join('')}</div></div>
+  <div class="set"><b>Daily goal</b><div class="seg" role="radiogroup" aria-label="Daily goal">${[10,30,50,100].map(g=>`<button role="radio" aria-checked="${S.goal===g}" class="${S.goal===g?'on':''}" data-g="${g}">${g} XP</button>`).join('')}</div></div>
   <div class="set"><b>Backup</b><p class="muted">Export all profiles to a JSON file, or import one to move progress to another device.</p><div class="row2"><button class="btn sm alt" id="exp">⬇️ Export</button><label class="btn sm alt" for="imp">⬆️ Import</label><input type="file" id="imp" accept="application/json" hidden></div></div>
   <div class="set"><b>Keyboard shortcuts (desktop)</b><p class="muted">1–9 choose an answer (or a code line in Arrange) · Backspace undo last line · Enter check / continue · H 50/50 · S skip · Esc quit</p></div>
   <div class="set"><b>Danger zone</b><button class="btn sm red" id="rs">Reset ${esc(S.name)}'s progress</button></div>
@@ -406,11 +416,11 @@ function settings(){cur='settings';daily();
   $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;S=n;save();land('learn')}};
 }
 // ---------- lesson engine ----------
-let R,timerId;
+let R,timerId,heartWatch;
 function once(el){if(!el)return false;const n=Date.now();if(el.__t&&n-el.__t<450)return false;el.__t=n;return true}
 function tap(id){if(tapLock[id])return false;tapLock[id]=true;queueMicrotask(()=>{tapLock[id]=false});return true}
 function start(items,opt){
-  clearInterval(timerId);daily();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0){histPush({screen:'hearts'});return outOfHearts()}
+  clearInterval(timerId);clearInterval(heartWatch);daily();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0){histPush({screen:'hearts'});return outOfHearts()}
   R=Object.assign({q:items.slice(),total:items.length,done:0,correct:0,mist:new Set(),res:[],t0:Date.now()},opt);
   histPush({screen:'session',back:cur});
   if(R.mode==='challenge'||R.mode==='interview'){R.end=Date.now()+R.secs*1000;timerId=setInterval(tick,250)}
@@ -446,7 +456,7 @@ function next(){
   if($('#sk'))$('#sk').onclick=()=>{if(!once($('#sk')))return;S.inv.skip--;save();R.q.shift();R.done++;R.res.push({e,ok:null});toast('⏭️ Skipped');next()};
 }
 function shield(ms=450){const ft=$('#ft');if(!ft)return;ft.style.pointerEvents='none';const token=String(Date.now()+Math.random());ft.dataset.shield=token;setTimeout(()=>{if(ft.isConnected&&ft.dataset.shield===token)ft.style.pointerEvents=''},ms)}
-function quit(){if(confirm('Quit? Progress in this session will be lost.')){clearInterval(timerId);R=null;navBack(home)}}
+function quit(){if(confirm('Quit? Progress in this session will be lost.')){clearInterval(timerId);clearInterval(heartWatch);R=null;navBack(home)}}
 function judge(ok,ans){
   const it=R.q.shift(),{e,k}=it,first=!R.mist.has(k);
   S.stats.answered++;if(ok)S.stats.correct++;{const x=dl();x.a++;if(ok)x.c++}
@@ -468,8 +478,11 @@ function judge(ok,ans){
   $('#cont').focus({preventScroll:true});
   $('#cont').onclick=()=>{if(!once($('#cont')))return;if(!ok&&!noHearts()){daily();if(S.hearts<=0){clearInterval(timerId);return outOfHearts()}}next()};
 }
-function outOfHearts(){daily();clearInterval(timerId);R=null;if(S.hearts>0)return land('learn');if(!(history.state&&history.state.br===1&&history.state.screen==='hearts')){try{history.replaceState({br:1,screen:'hearts'},'')}catch(e){}}shell(`<div class="center"><div class="big">💔</div><h1 class="h1">Out of hearts</h1><p class="muted">You get 1 heart back every 30 minutes${nextHeart()?` (next in <b>${nextHeart()}</b>)`:''}, and all 5 at midnight. Review, interviews, and speed challenges do not cost hearts.</p>${S.gems<30?`<p class="muted sm">A refill costs 30 gems. You have ${S.gems}.</p>`:''}<button class="btn" id="buyh" ${S.gems<30?'disabled':''}>Refill for 💎 30</button><button class="btn alt" id="pr" style="margin-top:12px">Practice mistakes instead</button></div>`);
-  $('#buyh').onclick=()=>{if(!once($('#buyh'))||S.gems<30)return;S.gems-=30;S.hearts=5;S.heartAt=null;S.stats.bought=(S.stats.bought||0)+1;sfx.coin();checkBadges();save();land('learn')};$('#pr').onclick=()=>{if(!once($('#pr')))return;go('practice')}}
+function outOfHearts(){daily();clearInterval(timerId);clearInterval(heartWatch);R=null;if(S.hearts>0)return land('learn');if(!(history.state&&history.state.br===1&&history.state.screen==='hearts')){try{history.replaceState({br:1,screen:'hearts'},'')}catch(e){}}
+  const draw=()=>{shell(`<div class="center"><div class="big">💔</div><h1 class="h1">Out of hearts</h1><p class="muted">You get 1 heart back every 30 minutes${nextHeart()?` (next in <b>${nextHeart()}</b>)`:''}, and all 5 at midnight. Review, interviews, and speed challenges do not cost hearts.</p>${S.gems<30?`<p class="muted sm">A refill costs 30 gems. You have ${S.gems}.</p>`:''}<button class="btn" id="buyh" data-nxt="${S.hearts}|${nextHeart()}|${S.gems}" ${S.gems<30?'disabled':''}>Refill for 💎 30</button><button class="btn alt" id="pr" style="margin-top:12px">Practice mistakes instead</button></div>`);
+    $('#buyh').onclick=()=>{if(!once($('#buyh'))||S.gems<30)return;clearInterval(heartWatch);S.gems-=30;S.hearts=5;S.heartAt=null;S.stats.bought=(S.stats.bought||0)+1;sfx.coin();checkBadges();save();land('learn')};$('#pr').onclick=()=>{if(!once($('#pr')))return;clearInterval(heartWatch);go('practice')}};
+  draw();
+  heartWatch=setInterval(()=>{if(!$('#buyh')){clearInterval(heartWatch);return}const before=$('#buyh').dataset.nxt;if(heartsDue())daily();if(!S||!$('#buyh')){clearInterval(heartWatch);return}if(S.hearts>0){clearInterval(heartWatch);land('learn');return}const now=`${S.hearts}|${nextHeart()}|${S.gems}`;if(now!==before)draw()},1000)}
 function finish(timeUp){
   clearInterval(timerId);if(!R)return;daily();const m=R.mode;
   let xp=0,gem=0,title='Lesson complete!',extra='';
@@ -527,10 +540,13 @@ addEventListener('storage',e=>{
   if(e.key!==PK||!e.newValue)return;
   let next;try{next=JSON.parse(e.newValue)}catch(err){return}
   if(!next||typeof next!=='object'||Array.isArray(next)||(next.rev||0)<=(P.rev||0))return;
+  if(R){remoteNewer=true;return}
+  remoteNewer=false;
   const busy=!!R;
   syncing=true;
   try{P=next;hydrate();if(!busy){const n=cur||'learn';cur='';show(n)}}
   finally{syncing=false}
 });
+if('serviceWorker' in navigator){let had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had){had=true;return}toast('A new version of ByteRyte is ready. Reload to use it.')})}
 window.__BR={get S(){return S},P:()=>P,cur:()=>R&&R.q[0]&&R.q[0].e};
 })();

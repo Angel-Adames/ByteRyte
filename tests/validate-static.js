@@ -9,7 +9,7 @@ const bad = m => issues.push(m);
 const app = read('app.js'), sw = read('sw.js'), index = read('index.html'), manifest = read('manifest.webmanifest'), css = read('style.css'), boot = read('boot.js');
 const all = [app, sw, index, manifest, css, boot, read('data.js'), read('interview.js'), read('README.md')].join('\n');
 
-if (!/const C='byteryte-v16'/.test(sw)) bad('service worker cache is not byteryte-v16');
+if (!/const C='byteryte-v17'/.test(sw)) bad('service worker cache is not byteryte-v17');
 if (!sw.includes("'boot.js'")) bad('service worker precache is missing boot.js');
 if (!/start_url"\s*:\s*"\.\/"/.test(manifest) || !/"scope"\s*:\s*"\.\/"/.test(manifest)) bad('manifest start_url and scope must stay relative ./');
 if (!/serviceWorker\.register\('sw\.js'\)/.test(boot)) bad('service worker must register as sw.js');
