@@ -190,3 +190,31 @@ main,.tip,.q,.sheet,.gcard,.opt,.toast,.card{overflow-wrap:anywhere;word-break:n
 @media(max-width:420px){.nodewrap{transform:translateX(calc(var(--x) * .62))}.path{padding-left:6px;padding-right:6px}}
 .opt:active:not(:disabled),.btn:active:not(:disabled),.pcard:active:not(:disabled),.bnav button:active{filter:brightness(1.06)}
 [data-theme=dark] .tip{color:#fde68a}
+/* round 4: path, lesson complete, long counters */
+.path{position:relative;gap:16px;padding:26px 0 12px}
+.path::before{content:"";position:absolute;z-index:0;left:50%;top:12px;bottom:12px;width:4px;transform:translateX(-50%);border-radius:999px;background:color-mix(in srgb,var(--c,var(--line)) 38%,var(--line));opacity:.9}
+.nodewrap{z-index:1}
+.node{position:relative;z-index:1}
+.node.done{outline:3px solid #fde68a;outline-offset:3px}
+.nlab{line-height:1.25;margin-left:auto;margin-right:auto}
+.startbub{box-shadow:0 3px 0 var(--line)}
+.startbub::after{content:"";position:absolute;top:100%;left:50%;margin-left:-7px;border:7px solid transparent;border-top-color:var(--card)}
+.fixnote{margin:-4px 0 12px;font-size:13px;font-weight:800;color:var(--rt)}
+.finish{padding-top:12px}
+.trophy{width:120px;height:120px;margin:4px auto 2px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 30%,#fff7d6,#fde68a 42%,#f59e0b);box-shadow:0 8px 0 #d97706}
+.finish .big{font-size:64px;line-height:1}
+.finish .cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;max-width:440px;margin:18px auto 8px}
+.finish .card{min-width:0;background:var(--card);box-shadow:0 4px 0 var(--line)}
+.finish .card.xp{background:color-mix(in srgb,#fef3c7 70%,var(--card));box-shadow:0 4px 0 #f59e0b}
+.finish .card.gem{background:color-mix(in srgb,#e0f2fe 72%,var(--card));box-shadow:0 4px 0 #0284c7}
+.finish .pill{margin-top:12px}
+.top.tight{gap:6px;padding-left:10px;padding-right:8px}
+.top.tight .brand{font-size:16px}
+.top.tight .logo{width:26px;height:26px;font-size:12px}
+.top.tight .stat{font-size:12px}
+.scard b,.stat{font-variant-numeric:tabular-nums}
+[data-theme=dark] .trophy{background:radial-gradient(circle at 35% 30%,#92400e,#78350f 55%,#451a03);box-shadow:0 8px 0 #451a03}
+[data-theme=dark] .node.done{outline-color:#92400e}
+[data-theme=dark] .finish .card.xp{background:color-mix(in srgb,#78350f 45%,var(--card))}
+[data-theme=dark] .finish .card.gem{background:color-mix(in srgb,#0c4a6e 50%,var(--card))}
+@media(max-width:420px){.finish .card b{font-size:20px}.nlab{max-width:128px}}

@@ -9,14 +9,15 @@ const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.random(
 const AVATARS=['🦊','🐼','🐙','🦉','🐸','🐯','🐨','🦄','🐧','🐳','🦖','🤖','👩‍💻','👨‍💻','🧑‍🚀','🐝'];
 const NEWP=(name='Learner',avatar='🦊')=>({id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,avatar,xp:0,streak:0,best:0,last:null,hearts:5,heartDay:today(),done:{},review:{},misses:{},xpLog:{},gems:50,freezes:0,inv:{fifty:1,skip:1},doubleUntil:0,goal:30,goalDay:null,badges:{},saved:{},dlog:{},stats:{answered:0,correct:0,perfect:0,lessons:0,interviews:0,bestIv:0,reviews:0,challenges:0},onboarded:false,track:'java',unlockAll:false,created:Date.now()});
 // ---------- storage + migration ----------
-let G=Object.assign({theme:'system',sound:true,big:false},JSON.parse(localStorage.getItem(GK)||'{}'));
-let P=JSON.parse(localStorage.getItem(PK)||'null');
-if(!P){P={active:null,list:{}};const old=JSON.parse(localStorage.getItem('byteroots-v1')||'null');
+const readStore=k=>{try{const t=localStorage.getItem(k);return t?JSON.parse(t):null}catch(e){return null}};
+let G=Object.assign({theme:'system',sound:true,big:false},readStore(GK)||{});
+let P=readStore(PK);
+if(!P||typeof P!=='object'||Array.isArray(P)){P={active:null,list:{}};const old=readStore('byteroots-v1');
   if(old){const p=Object.assign(NEWP(),{xp:old.xp||0,streak:old.streak||0,done:old.done||{},review:old.review||{},track:old.track||'java',onboarded:true});
     if(old.last){const d=new Date(old.last);if(!isNaN(d))p.last=iso(d)}p.best=p.streak;P.list[p.id]=p;P.active=p.id}}
 let S;
 function hydrate(){
-  if(!P||typeof P!=='object')P={active:null,list:{}};
+  if(!P||typeof P!=='object'||Array.isArray(P))P={active:null,list:{}};
   if(!P.list||typeof P.list!=='object')P.list={};
   Object.keys(P.list).forEach(id=>{const d=NEWP(),p=P.list[id]||{};
     P.list[id]=Object.assign(d,p,{id,inv:Object.assign({},d.inv,p.inv||{}),stats:Object.assign({},d.stats,p.stats||{}),saved:Object.assign({},p.saved||{}),badges:Object.assign({},p.badges||{}),done:Object.assign({},p.done||{}),review:Object.assign({},p.review||{}),misses:Object.assign({},p.misses||{}),xpLog:Object.assign({},p.xpLog||{}),dlog:Object.assign({},p.dlog||{})})});
@@ -28,11 +29,12 @@ const save=()=>{if(S)P.list[S.id]=S;localStorage.setItem(PK,JSON.stringify(P))};
 const HREG=30*60*1000;
 function regen(){if(S.hearts>=5){S.heartAt=null;return}if(!S.heartAt){S.heartAt=Date.now();return}const n=Math.floor((Date.now()-S.heartAt)/HREG);if(n>0){S.hearts=Math.min(5,S.hearts+n);S.heartAt=S.hearts>=5?null:S.heartAt+n*HREG;save()}}
 function nextHeart(){if(S.hearts>=5||!S.heartAt)return '';const m=Math.max(1,Math.ceil((S.heartAt+HREG-Date.now())/60000));return `${m} min`}
-function daily(){ // refill hearts, streak freeze handling
+function daily(){ // refill hearts at midnight, streak freeze handling
+  if(!S)return;
   regen();
-  if(S.heartDay!==today()){S.hearts=5;S.heartDay=today()}
+  if(S.heartDay!==today()){S.hearts=5;S.heartAt=null;S.heartDay=today()}
   if(S.last&&S.last!==today()&&S.last!==yday()){const miss=dayDiff(S.last,today())-1;
-    if(S.freezes>=miss){S.freezes-=miss;S.last=yday();toast(`🧊 Streak freeze used (${miss}) — streak saved!`)}else S.streak=0}
+    if(miss>0&&S.freezes>=miss){S.freezes-=miss;S.last=yday();toast(`🧊 Streak freeze used (${miss}) — streak saved!`)}else if(miss>0)S.streak=0}
   save()}
 // ---------- theme / sound / toast ----------
 const mq=matchMedia('(prefers-color-scheme: dark)');
@@ -52,7 +54,7 @@ function hl(code){const re=/(\/\/.*$)|("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)')|(\b\d
 const T=id=>TRACKS.find(t=>t.id===id);
 const lessons=t=>{const o=[];t.units.forEach((u,ui)=>u.lessons.forEach((l,li)=>o.push({l,ui,li,key:`${t.id}-${ui}-${li}`})));return o};
 const DJ='https://dev.java/learn/',DO='https://docs.oracle.com/en/java/javase/21/docs/api/java.base/java/',FX='https://openjfx.io/javadoc/21/',MDN='https://developer.mozilla.org/en-US/docs/',SW='https://docs.swift.org/swift-book/documentation/the-swift-programming-language/';
-const DOCS={'Types & Variables':DJ+'language-basics/primitive-types/','Strings':DO+'lang/String.html','Control Flow':DJ+'language-basics/controlling-flow/','Methods':DJ+'classes-objects/defining-methods/','Arrays':DJ+'language-basics/arrays/','Classes & Objects':DJ+'classes-objects/','Inheritance & Polymorphism':DJ+'inheritance/','Interfaces & Abstract Classes':DJ+'interfaces/','References & Memory':DJ+'classes-objects/creating-objects/','Exceptions':DJ+'exceptions/','Lists & Generics':DJ+'generics/','Maps & Sets':DJ+'api/collections-framework/','Lambdas & Streams':DJ+'lambdas/','Records, Enums & Equality':DJ+'records/','Sorting & Comparators':DO+'util/Comparator.html','Recursion':DJ+'classes-objects/defining-methods/','Big-O & Searching':DO+'util/Arrays.html','Threads & Concurrency':DO+'util/concurrent/package-summary.html','OOP Design & SOLID':DJ+'interfaces/','Files & I/O':DO+'nio/file/Files.html','Testing with JUnit':'https://junit.org/junit5/docs/current/user-guide/','Interview Patterns':DJ+'api/collections-framework/',
+const DOCS={'Types & Variables':DJ+'language-basics/primitive-types/','Strings':DO+'lang/String.html','Control Flow':DJ+'language-basics/controlling-flow/','Methods':DJ+'classes-objects/defining-methods/','Arrays':DJ+'language-basics/arrays/','Classes & Objects':DJ+'classes-objects/','Inheritance & Polymorphism':DJ+'inheritance/','Interfaces & Abstract Classes':DJ+'interfaces/','References & Memory':DJ+'classes-objects/creating-objects/','Exceptions':DJ+'exceptions/','Lists & Generics':DJ+'generics/','Maps & Sets':DJ+'api/collections-framework/','Lambdas & Streams':DJ+'lambdas/','Records, Enums & Equality':DJ+'records/','Sorting & Comparators':DO+'util/Comparator.html','Recursion':DJ+'classes-objects/defining-methods/','Big-O & Searching':DO+'util/Arrays.html','Threads & Concurrency':DO+'util/concurrent/package-summary.html','OOP Design & SOLID':DJ+'interfaces/','Files & I/O':DO+'nio/file/Files.html','Testing with JUnit':'https://junit.org/junit5/docs/current/user-guide/','Interview Patterns':DJ+'api/collections-framework/','Abstract vs Interface':DJ+'interfaces/','Generic Methods':DJ+'generics/','Checked & Unchecked':DJ+'exceptions/','Stream Pipelines':DO+'util/stream/Collectors.html','Records in Practice':DJ+'records/','Enums with State':'https://docs.oracle.com/javase/tutorial/java/javaOO/enum.html','Big-O Tradeoffs':DO+'util/Arrays.html',
 'App Lifecycle & Scene Graph':FX+'javafx.graphics/javafx/application/Application.html','Layouts & Controls':FX+'javafx.graphics/javafx/scene/layout/package-summary.html','Events, Properties & FXML':FX+'javafx.base/javafx/beans/property/package-summary.html','Styling JavaFX with CSS':FX+'javafx.graphics/javafx/scene/doc-files/cssref.html','Concurrency & Tasks':FX+'javafx.graphics/javafx/concurrent/Task.html',
 'Semantic HTML & Forms':MDN+'Glossary/Semantics','Box Model & Selectors':MDN+'Learn_web_development/Core/Styling_basics/Box_model','Flexbox & Grid':MDN+'Web/CSS/CSS_grid_layout','Responsive Design':MDN+'Learn_web_development/Core/CSS_layout/Responsive_Design','Variables, Transitions & Units':MDN+'Web/CSS/Using_CSS_custom_properties',
 'Basics & Optionals':SW+'thebasics/','Value vs Reference Types':SW+'classesandstructures/','Errors & SwiftUI Basics':SW+'errorhandling/','Protocols, Closures & Collections':SW+'protocols/','Enums, Switch & Structs':SW+'enumerations/','Alerts & Dialogs':FX+'javafx.controls/javafx/scene/control/Alert.html','Windows & Modality':FX+'javafx.graphics/javafx/stage/Stage.html','Lists & Selection':FX+'javafx.controls/javafx/scene/control/ListView.html','Forms & Validation':MDN+'Web/CSS/:invalid','Positioning':MDN+'Web/CSS/position','Accessible CSS':MDN+'Web/CSS/:focus-visible','Strings & Characters':SW+'stringsandcharacters/','Throwing Functions':SW+'errorhandling/','SwiftUI Lists':'https://developer.apple.com/documentation/swiftui/foreach'};
@@ -66,7 +68,7 @@ const exByKey=k=>{if(k.startsWith('iv-'))return IV[+k.slice(3)];const [t,u,l,e]=
 const lessonOf=k=>{const [t,u,l]=k.split('-');return T(t)?.units[u]?.lessons[l]};
 const branchOpen=()=>S.unlockAll||lessons(T('java')).filter(x=>x.ui===0).every(x=>S.done[x.key]);
 const due=()=>Object.entries(S.review).filter(([k,v])=>v.due<=Date.now()&&exByKey(k)).map(([k])=>k);
-const NAMES={mc:'Concept check',out:'Predict the output',fill:'Complete the code',ar:'Arrange the code',bug:'Spot the bug'};
+const NAMES={mc:'Concept check',out:'Predict the output',fill:'Complete the code',ar:'Arrange the code',bug:'Spot the bug',fix:'Fix the bug'};
 const dblOn=()=>S.doubleUntil>Date.now();
 function addXP(n){if(dblOn())n*=2;S.xp+=n;S.xpLog[today()]=(S.xpLog[today()]||0)+n;
   if(S.last!==today()){S.streak=S.last===yday()?S.streak+1:1;S.last=today();S.best=Math.max(S.best,S.streak);if(S.streak%7===0){gems(20,'7-day streak bonus')}}
@@ -108,7 +110,7 @@ function checkBadges(){BADGES.forEach(([id,ic,n,,f])=>{if(!S.badges[id]&&f()){S.
 // ---------- shell ----------
 const NAV=[['learn','📚','Learn'],['practice','🎯','Practice'],['interview','💼','Interview'],['shop','💎','Shop'],['profile','👤','Profile']];
 let cur='learn';
-function topbar(){return `<header class="top"><button class="brand" data-go="learn" aria-label="ByteRyte home"><span class="logo">{ }</span>ByteRyte</button>
+function topbar(){const tight=S.streak>=100||S.gems>=1000;return `<header class="top${tight?' tight':''}"><button class="brand" data-go="learn" aria-label="ByteRyte home"><span class="logo">{ }</span>ByteRyte</button>
 <span class="stat" title="Day streak" aria-label="${S.streak} day streak">🔥 ${S.streak}</span><span class="stat" title="Gems" aria-label="${S.gems} gems">💎 ${S.gems}</span><span class="stat" title="${S.hearts<5&&nextHeart()?'Next heart in '+nextHeart():'Hearts full'}" aria-label="${S.hearts} hearts${S.hearts<5&&nextHeart()?', next in '+nextHeart():''}">❤️ ${S.hearts}</span>
 <button class="icon" data-go="settings" aria-label="Settings">⚙️</button></header>`}
 function rail(){const lv=level(),wk=[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[iso(Date.now()-i*DAY)]||0),0);
@@ -120,7 +122,7 @@ function shell(inner,{nav=true}={}){regen();document.querySelectorAll('.conf').f
 function go(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,settings}[v]||home)()}
 // ---------- learn ----------
 function home(){
-  cur='learn';const t=T(S.track),ls=lessons(t),locked=t.parent&&!branchOpen(),firstOpen=ls.findIndex(x=>!S.done[x.key]),gp=Math.min(100,(S.xpLog[today()]||0)/S.goal*100);
+  cur='learn';daily();const t=T(S.track),ls=lessons(t),locked=t.parent&&!branchOpen(),firstOpen=ls.findIndex(x=>!S.done[x.key]),gp=Math.min(100,(S.xpLog[today()]||0)/S.goal*100);
   let h=`<section class="goalcard"><div class="row"><b>Daily goal</b><span>${S.xpLog[today()]||0} / ${S.goal} XP</span></div><div class="bar"><i style="width:${gp}%"></i></div>${S.last===yday()&&!(S.xpLog[today()])?`<div class="pill warn">🔥 Keep your ${S.streak}-day streak alive — do one lesson today!</div>`:''}${S.freezes?`<div class="pill">🧊 ${S.freezes} streak freeze${S.freezes>1?'s':''} ready</div>`:''}${dblOn()?`<div class="pill">⚡ Double XP active · ${Math.ceil((S.doubleUntil-Date.now())/60000)} min left</div>`:''}</section>
   <button class="qchip" data-go="practice">🗓 Daily quests <b>${quests().filter(q=>q.done).length}/3</b><span>›</span></button>
   <div class="tabs" role="tablist">`;
@@ -129,7 +131,7 @@ function home(){
   h+=`</div>`;
   if(locked)h+=`<div class="branchbox">🔒 This branch grows off the Java trunk. Finish <b>Java Unit 1</b> to unlock it.</div>`;
   t.units.forEach((u,ui)=>{const ud=u.lessons.filter((l,li)=>S.done[`${t.id}-${ui}-${li}`]).length;
-    h+=`<div class="unit" style="--c:${t.color}"><div>${esc(u.name)}<small>${ud}/${u.lessons.length} lessons complete</small></div><div class="uright"><button class="guide" data-u="${ui}" aria-label="Open ${esc(u.name)} guidebook">📖 Guide</button><div class="ring" style="--p:${ud/u.lessons.length*100}" aria-hidden="true"></div></div></div><div class="path">`;
+    h+=`<div class="unit" style="--c:${t.color}"><div>${esc(u.name)}<small>${ud}/${u.lessons.length} lessons complete</small></div><div class="uright"><button class="guide" data-u="${ui}" aria-label="Open ${esc(u.name)} guidebook">📖 Guide</button><div class="ring" style="--p:${ud/u.lessons.length*100}" aria-hidden="true"></div></div></div><div class="path" style="--c:${t.color}">`;
     u.lessons.forEach((l,li)=>{const i=ls.findIndex(x=>x.ui===ui&&x.li===li),k=ls[i].key,open=!locked&&(S.unlockAll||i<=firstOpen||firstOpen<0||S.done[k]),isCur=open&&!S.done[k]&&i===firstOpen;
       const off=[0,48,68,48,0,-48,-68,-48][i%8];
       h+=`<div class="nodewrap ${isCur?'hascur':''}" style="--x:${off}px">${isCur?'<div class="startbub">START</div>':''}<button class="node ${open?'':'lock'} ${S.done[k]?'done':''} ${isCur?'cur':''}" style="--c:${t.color}" data-k="${k}" ${open?'':'disabled'} aria-label="${esc(l.name)}${S.done[k]?' (complete)':open?'':' (locked)'}">${S.done[k]?'★':open?t.icon:'🔒'}</button><div class="nlab">${esc(l.name)}</div></div>`});
@@ -142,12 +144,12 @@ function home(){
   $$('.guide').forEach(b=>b.onclick=()=>guide(t,+b.dataset.u));
   $('.node.cur')?.scrollIntoView({block:'center'});
 }
-function guide(t,ui){const u=t.units[ui];
+function guide(t,ui){daily();const u=t.units[ui];
   shell(`<button class="link" id="bk">‹ Back to path</button><h1 class="h1">📖 ${esc(u.name)}</h1><p class="muted">Key ideas for every lesson in this unit — read before you start, or come back to refresh.</p>
   ${u.lessons.map((l,li)=>{const ex=l.ex.find(e=>e.t==='out'&&e.code.split('\n').length<=4);return `<article class="gcard" style="--c:${t.color}"><h2>${t.icon} ${esc(l.name)} ${S.done[`${t.id}-${ui}-${li}`]?'<span class="tag">✓ done</span>':''}</h2><p>${esc(l.tip)}</p>${sheetHTML(l.sheet)}${docLink(DOCS[l.name])}${ex?`<div class="gex"><small>Example</small><pre class="code sm" tabindex="0">${hl(ex.code)}</pre><small>Prints: <code>${esc(ex.opts[ex.a])}</code></small></div>`:''}</article>`}).join('')}`);
   $('#bk').onclick=home}
 // ---------- practice ----------
-function practice(){cur='practice';const dn=due().length;
+function practice(){cur='practice';daily();const dn=due().length;
   const weak=Object.entries(S.misses).filter(([k])=>lessonOf(k)).sort((a,b)=>b[1]-a[1]).slice(0,4);
   let h=`<h1 class="h1">Practice</h1><div class="mobonly">${questsHTML()}</div>
   <button class="pcard" id="rev" ${dn?'':'disabled'}><span class="pic">🔁</span><span><b>Review mistakes</b><small>${dn?`${dn} question(s) due — spaced repetition`:'Nothing due. Missed questions come back here.'}</small></span></button>
@@ -164,7 +166,7 @@ function practice(){cur='practice';const dn=due().length;
   $$('.weak').forEach(b=>b.onclick=()=>{const L=lessonOf(b.dataset.k);start(shuffle(L.ex.map((e,i)=>({e,k:`${b.dataset.k}-${i}`}))),{name:'Practice: '+L.name,mode:'practice',pk:b.dataset.k})});
 }
 // ---------- interview ----------
-function ivHome(){cur='interview';
+function ivHome(){cur='interview';daily();
   const tags=[...new Set(IV.map(q=>q.tag))];
   shell(`<h1 class="h1">Mock Interview</h1><p class="muted">Timed technical-screen practice: predict output, find bugs, pick data structures, reason about Big-O, and complete methods. No hearts lost — you get a scorecard at the end.</p>
   <div class="ivgrid">${[['Quick screen',8,6],['Standard',12,10],['Full loop',18,15]].map(([n,q,m])=>`<button class="pcard ivs" data-q="${q}" data-m="${m}"><span class="pic">💼</span><span><b>${n}</b><small>${q} questions · ${m} min</small></span></button>`).join('')}</div>
@@ -175,19 +177,19 @@ function ivHome(){cur='interview';
   $$('.tbtn').forEach(b=>b.onclick=()=>{const qs=shuffle(IV.map((e,i)=>({e,k:'iv-'+i})).filter(x=>x.e.tag===b.dataset.tag));start(qs,{name:'Topic drill: '+b.dataset.tag,mode:'interview',secs:qs.length*60})});
 }
 // ---------- shop ----------
-const ITEMS=[['hearts','❤️','Heart refill','Restore all 5 hearts now (otherwise +1 every 30 min, full at midnight)',30,()=>S.hearts<5,()=>{S.hearts=5}],
+const ITEMS=[['hearts','❤️','Heart refill','Restore all 5 hearts now (otherwise +1 every 30 min, full at midnight)',30,()=>S.hearts<5,()=>{S.hearts=5;S.heartAt=null}],
 ['freeze','🧊','Streak freeze','Protects your streak for one missed day (max 2)',50,()=>S.freezes<2,()=>{S.freezes++}],
 ['fifty','✂️','50/50 hint ×3','Remove two wrong answers on a question',20,()=>true,()=>{S.inv.fifty=(S.inv.fifty||0)+3}],
 ['skip','⏭️','Skip question ×2','Skip a hard question without losing a heart',25,()=>true,()=>{S.inv.skip=(S.inv.skip||0)+2}],
 ['double','⚡','Double XP (15 min)','Earn 2× XP for 15 minutes',40,()=>true,()=>{S.doubleUntil=Math.max(Date.now(),S.doubleUntil)+15*60000}]];
-function shop(){cur='shop';
+function shop(){cur='shop';daily();
   shell(`<h1 class="h1">Gem Shop</h1><div class="wallet"><span>💎</span><div><b>${S.gems}</b><small>gems · earned from lessons, goals, streaks and interviews. Just for fun: no real money involved.</small></div></div>
   <div class="inv">Your stuff: ✂️ ${S.inv.fifty||0} · ⏭️ ${S.inv.skip||0} · 🧊 ${S.freezes}/2 ${dblOn()?'· ⚡ active':''}</div>
   ${ITEMS.map(([id,ic,n,d,c,ok])=>`<div class="sitem"><span class="pic">${ic}</span><div><b>${n}</b><small>${d}</small></div><button class="btn sm buy" data-id="${id}" ${S.gems<c||!ok()?'disabled':''}>💎 ${c}</button></div>`).join('')}
   <h2 class="h2">How to earn gems</h2><ul class="muted earn"><li>Finish a lesson: +5 (perfect lesson: +10)</li><li>Hit your daily goal: +10</li><li>Every 7-day streak: +20</li><li>Mock interview: +2 per correct answer</li><li>Speed challenge: +1 per correct answer</li></ul>`);
   $$('.buy').forEach(b=>b.onclick=()=>{const it=ITEMS.find(x=>x[0]===b.dataset.id);if(S.gems<it[4]||!it[5]())return;S.gems-=it[4];it[6]();S.stats.bought=(S.stats.bought||0)+1;sfx.coin();buzz(20);toast(`${it[1]} ${it[2]} purchased!`);checkBadges();save();shop()})}
 // ---------- profile ----------
-function profile(){cur='profile';
+function profile(){cur='profile';daily();
   const days=[...Array(7)].map((_,i)=>iso(Date.now()-(6-i)*DAY)),mx=Math.max(S.goal,...days.map(d=>S.xpLog[d]||0));
   const week=d=>[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[iso(Date.now()-(i+d)*DAY)]||0),0),tw=week(0),lw=week(7);
   const dow=new Date().getDay(),cal=[...Array(35)].map((_,i)=>{const off=dow+28-i;return off<0?null:iso(Date.now()-off*DAY)}).slice(0);const lv=level();
@@ -207,7 +209,7 @@ function profile(){cur='profile';
   $('#addp').onclick=()=>{const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p;save();onboard()};
   $$('.sw').forEach(b=>b.onclick=()=>{P.active=b.dataset.id;S=P.list[P.active];save();daily();toast(`Switched to ${S.name}`);home()});
 }
-function recap(){cur='profile';
+function recap(){cur='profile';daily();
   const ds=[...Array(7)].map((_,i)=>iso(Date.now()-(6-i)*DAY)),xp=d=>S.xpLog[d]||0,tw=ds.reduce((a,d)=>a+xp(d),0),lw=[...Array(7)].reduce((a,_,i)=>a+xp(iso(Date.now()-(i+7)*DAY)),0);
   const act=ds.filter(d=>xp(d)>0).length,best=ds.reduce((b,d)=>xp(d)>xp(b)?d:b,ds[6]),dl7=ds.map(d=>(S.dlog||{})[d]||{l:0,a:0,c:0}),les=dl7.reduce((a,x)=>a+x.l,0),ans=dl7.reduce((a,x)=>a+x.a,0),cor=dl7.reduce((a,x)=>a+x.c,0);
   const wkStart=Date.now()-7*DAY,nb=BADGES.filter(([id])=>S.badges[id]>1e12&&S.badges[id]>wkStart),goals=ds.filter(d=>xp(d)>=S.goal).length,dn=due().length;
@@ -235,7 +237,7 @@ function editProfile(isNew){let av=S.avatar;
 }
 const onboard=()=>editProfile(true);
 // ---------- settings ----------
-function settings(){cur='settings';
+function settings(){cur='settings';daily();
   shell(`<h1 class="h1">Settings</h1>
   <div class="set"><b>Appearance</b><div class="seg" role="radiogroup">${['system','light','dark'].map(t=>`<button role="radio" aria-checked="${G.theme===t}" class="${G.theme===t?'on':''}" data-th="${t}">${{system:'🖥 System',light:'☀️ Light',dark:'🌙 Dark'}[t]}</button>`).join('')}</div></div>
   <div class="set row"><b>Sound effects</b><button class="switch ${G.sound?'on':''}" id="snd" role="switch" aria-checked="${G.sound}" aria-label="Sound effects"><i></i></button></div>
@@ -258,7 +260,7 @@ function settings(){cur='settings';
 // ---------- lesson engine ----------
 let R,timerId;
 function start(items,opt){
-  clearInterval(timerId);regen();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0)return outOfHearts();
+  clearInterval(timerId);daily();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0)return outOfHearts();
   R=Object.assign({q:items.slice(),total:items.length,done:0,correct:0,mist:new Set(),res:[],t0:Date.now()},opt);
   if(R.mode==='challenge'||R.mode==='interview'){R.end=Date.now()+R.secs*1000;timerId=setInterval(tick,250)}
   app.className='';if(R.tip){app.innerHTML=`<div class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar"><i style="width:0"></i></div></div><main class="fade"><div class="kind">💡 Before you start</div><h1 class="h1">${esc(R.name)}</h1><div class="tip">${esc(R.tip)}</div>${sheetHTML(R.sheet)}<p class="muted">${R.total} exercises · mistakes come back at the end and in Review.</p></main><div class="foot"><div class="in"><button class="btn" id="go">Start lesson</button></div></div>`;
@@ -267,12 +269,14 @@ function start(items,opt){
 function tick(){const left=Math.max(0,R.end-Date.now()),el=$('#tmr');if(el){el.textContent=`⏱ ${Math.floor(left/60000)}:${String(Math.floor(left/1000)%60).padStart(2,'0')}`;el.classList.toggle('warn',left<10000)}if(!left){clearInterval(timerId);finish(true)}}
 const timed=()=>R.mode==='challenge'||R.mode==='interview',noHearts=()=>R.mode==='saved'||R.mode==='interview'||R.mode==='challenge'||R.mode==='placement'||R.mode==='review';
 function next(){
+  daily();
   if(!R.q.length)return finish();
   const {e}=R.q[0],tr=e.tag?`<span class="tag">${e.tag}</span>`:'';let sel=null;
   const pct=timed()?R.done/Math.max(R.done+1,R.mode==='challenge'?R.done+1:R.total)*100:R.done/R.total*100;
   let h=`<div class="lhead"><button class="x" id="x" aria-label="Quit">✕</button><div class="bar" role="progressbar" aria-label="Lesson progress" aria-valuenow="${Math.round(pct)}" aria-valuemin="0" aria-valuemax="100"><i style="width:${pct}%"></i></div>${R.mode==='challenge'?`<span class="stat" aria-live="polite">✅ ${R.correct}</span>`:''}${timed()?`<span class="stat tmr" id="tmr">⏱</span>`:noHearts()?`<span class="stat">${R.done}/${R.total}</span>`:`<span class="stat" id="hs">❤️ ${S.hearts}</span>`}</div>
   <main class="fade qmain"><div class="kind">${NAMES[e.t]} ${tr}${dblOn()?'<span class="tag gold">2× XP</span>':''}</div><h1 class="q">${esc(e.q||'What does this print?')}</h1>`;
   if(e.code)h+=`<pre class="code" tabindex="0" aria-label="Code">${hl(e.code)}</pre>`;
+  if(e.t==='fix')h+=`<p class="fixnote">Pick the line that makes this correct.</p>`;
   if(e.t==='ar')h+=`<div class="zone" id="ans" aria-label="Your answer"><span class="ph">Tap lines below in the right order</span></div><div class="zone bank" id="bank"></div>`;
   else{const lst=e.t==='bug'?e.lines.map((x,i)=>[x,i]):shuffle(e.opts.map((x,i)=>[x,i]));
     h+=`<div class="opts" role="radiogroup">`+lst.map(([x,i],n)=>`<button role="radio" aria-checked="false" class="opt ${e.t!=='mc'?'code':''}" data-i="${i}"><kbd>${n+1}</kbd><span>${e.t==='mc'?esc(x):hl(x)}</span></button>`).join('')+`</div>`}
@@ -310,12 +314,12 @@ function judge(ok,ans){
   $('#bm').onclick=()=>{if(S.saved[k])delete S.saved[k];else S.saved[k]=Date.now();save();const on=!!S.saved[k];$('#bm').textContent=on?'★ Saved':'☆ Save question';$('#bm').setAttribute('aria-pressed',on);if(on){S.stats.saved=(S.stats.saved||0)+1;checkBadges()}};
   requestAnimationFrame(()=>requestAnimationFrame(()=>ft.classList.add('show')));
   $('#cont').focus({preventScroll:true});
-  $('#cont').onclick=()=>{if(!ok&&!noHearts()&&S.hearts<=0){clearInterval(timerId);return outOfHearts()}next()};
+  $('#cont').onclick=()=>{if(!ok&&!noHearts()){daily();if(S.hearts<=0){clearInterval(timerId);return outOfHearts()}}next()};
 }
-function outOfHearts(){shell(`<div class="center"><div class="big">💔</div><h1 class="h1">Out of hearts</h1><p class="muted">You get 1 heart back every 30 minutes${nextHeart()?` (next in <b>${nextHeart()}</b>)`:''}, and all 5 at midnight. Review, interviews and speed challenges don't cost hearts.</p><button class="btn" id="buyh" ${S.gems<30?'disabled':''}>Refill for 💎 30</button><button class="btn alt" id="pr" style="margin-top:12px">Practice mistakes instead</button></div>`);
-  $('#buyh').onclick=()=>{if(S.gems<30)return;S.gems-=30;S.hearts=5;S.stats.bought=(S.stats.bought||0)+1;sfx.coin();checkBadges();save();home()};$('#pr').onclick=practice}
+function outOfHearts(){daily();if(S.hearts>0)return home();shell(`<div class="center"><div class="big">💔</div><h1 class="h1">Out of hearts</h1><p class="muted">You get 1 heart back every 30 minutes${nextHeart()?` (next in <b>${nextHeart()}</b>)`:''}, and all 5 at midnight. Review, interviews and speed challenges don't cost hearts.</p><button class="btn" id="buyh" ${S.gems<30?'disabled':''}>Refill for 💎 30</button><button class="btn alt" id="pr" style="margin-top:12px">Practice mistakes instead</button></div>`);
+  $('#buyh').onclick=()=>{if(S.gems<30)return;S.gems-=30;S.hearts=5;S.heartAt=null;S.stats.bought=(S.stats.bought||0)+1;sfx.coin();checkBadges();save();home()};$('#pr').onclick=practice}
 function finish(timeUp){
-  clearInterval(timerId);if(!R)return;const m=R.mode;
+  clearInterval(timerId);if(!R)return;daily();const m=R.mode;
   let xp=0,gem=0,title='Lesson complete!',extra='';
   const answered=R.res.filter(r=>r.ok!==null).length;
   const skipped=R.res.some(r=>r.ok===null);
@@ -327,9 +331,9 @@ function finish(timeUp){
   if(m==='interview')return ivSummary(timeUp);
   const acc=answered?Math.round(R.correct/(m==='lesson'||m==='practice'||m==='saved'?R.total:answered)*100):0;
   const lv0=level().L;xp=addXP(xp);if(gem)S.gems+=gem;const lv1=level().L;if(lv1>lv0){S.gems+=20;extra+=`<p class="pill lvup">🆙 Level up! You reached level ${lv1} · +20 💎</p>`}checkBadges();save();sfx.win();buzz([30,50,30]);const secs=Math.round((Date.now()-R.t0)/1000);
-  shell(`<div class="center"><div class="big">${m==='challenge'?'⏱️':m==='placement'?'🧭':'🏆'}</div><h1 class="h1">${title}</h1><p class="muted">${esc(R.name)}</p>
+  shell(`<div class="center finish"><div class="trophy" aria-hidden="true"><div class="big">${m==='challenge'?'⏱️':m==='placement'?'🧭':'🏆'}</div></div><h1 class="h1">${title}</h1><p class="muted">${esc(R.name)}</p>
   <div class="cards"><div class="card xp">⚡<b>+${xp}</b>XP</div><div class="card">${m==='challenge'?'✅':'🎯'}<b>${m==='challenge'?R.correct:acc+'%'}</b>${m==='challenge'?'correct':'accuracy'}</div><div class="card gem">💎<b>+${gem}</b>gems</div></div>${extra}<p class="muted sm">⏱ ${Math.floor(secs/60)}m ${secs%60}s</p>
-  ${R.mist.size&&m!=='placement'?`<p class="muted">${R.mist.size} missed question(s) saved to Review.</p>`:m==='lesson'&&!skipped?'<p class="pill up">Flawless! +5 bonus gems</p>':''}</div>`,{nav:false});
+  ${R.mist.size&&m!=='placement'?`<p class="muted">${R.mist.size} missed question(s) saved to Review.</p>`:m==='lesson'&&!skipped?'<p class="pill up">Flawless — 10 gems</p>':''}</div>`,{nav:false});
   app.insertAdjacentHTML('beforeend','<div class="foot"><div class="in"><button class="btn" id="h">Continue</button></div></div>');$('#h').onclick=home;$('#h').focus();
   confetti();
 }
