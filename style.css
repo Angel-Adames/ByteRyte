@@ -140,7 +140,7 @@ body.fl-ok #app{animation:flok .35s}body.fl-no #app{animation:flno .35s}@keyfram
 .rail{display:none}
 .rcard{border:2px solid var(--line);border-radius:var(--rad);padding:12px 14px;margin-bottom:14px;background:var(--card)}.rcard.me{display:flex;gap:12px;align-items:center}.rcard.me>div{flex:1}.rcard.me small{display:block;color:var(--mut);font-weight:700;font-size:12px;margin:2px 0 6px}.rcard.me .bar i{background:linear-gradient(90deg,#8b5cf6,#0ea5e9)}
 .sgrid.s2{grid-template-columns:1fr 1fr}.promo{background:linear-gradient(135deg,color-mix(in srgb,#6366f1 14%,var(--card)),var(--card))}.promo small{display:block;color:var(--mut);margin:4px 0 10px;line-height:1.4}
-[data-big] .h1{font-size:30px}[data-big] .q{font-size:24px}[data-big] .opt,[data-big] .btn,[data-big] .muted,[data-big] .tip{font-size:18px}[data-big] .nlab{font-size:15px}[data-big] .stat{font-size:16px}
+[data-big] .h1{font-size:30px}[data-big] .h2,[data-big] .q{font-size:22px}[data-big] .opt,[data-big] .btn,[data-big] .muted,[data-big] .tip,[data-big] .pcard b,[data-big] .tab{font-size:17px}[data-big] .nlab{font-size:15px}[data-big] .stat{font-size:16px}[data-big] .unit{font-size:19px}
 @media(min-width:1100px){
  #app.withnav{max-width:1240px;display:grid;grid-template-columns:240px minmax(0,1fr) 330px;grid-template-rows:auto 1fr;grid-template-areas:"nav top top" "nav main rail";box-shadow:none;background:var(--bg)}
  #app.withnav .top{grid-area:top}#app.withnav main{grid-area:main;padding:20px 40px 60px;max-width:720px;width:100%;justify-self:center}
