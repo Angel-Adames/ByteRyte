@@ -2,7 +2,9 @@
 
 Independent check of ByteRyte after cycles 1–200. Prior PASS results were treated as unverified until this round produced its own evidence. This file does not say the app is free of defects.
 
-Wall clock: start `2026-10-25T23:05:26Z` (`date -u` at the start of this audit). Report closed `2026-10-25T23:27:41Z`. Elapsed 22 minutes 15 seconds. The full `npm test` log at `/tmp/npm-test-audit.txt` shows Playwright traffic from `23:18:11` to `23:20:26` and `320 passed (2.6m)`. Close-out reproductions against pre-fix `app.js` ran at `23:25:15Z`.
+Part 1 wall clock: start `2026-10-25T23:05:26Z` (`date -u` at the start of this audit). Part 1 report closed `2026-10-25T23:27:41Z` (22 minutes 15 seconds). The full `npm test` log at `/tmp/npm-test-audit.txt` shows Playwright traffic from `23:18:11` to `23:20:26` and `320 passed (2.6m)`. Close-out reproductions against pre-fix `app.js` ran at `23:25:15Z`.
+
+Part 2 started `2026-10-25T23:29:15Z` from `origin/main` `8dbc279` and closed `2026-10-25T23:44:02Z` (14 minutes 47 seconds). Active time for both parts, not counting the gap between them, is 37 minutes 2 seconds.
 
 Base commit: `96d50e0` (`origin/main` at the start, cache `byteryte-v20`). Fix commit on this branch: `f803009`. Cache shipped with the fix: `byteryte-v21`.
 
@@ -158,10 +160,8 @@ Executed and recorded:
 - Full-disk save error, a second tab that is not inside a lesson, stacked Double XP, soak, and emulated slow 4G, via the one full suite.
 - Mutation: purchase assertion fails when the merge call is skipped.
 
-Read, not executed as a test:
+Part 1 left these unread by a test. Part 2 ran them. See R3-12 and R3-13.
 
-- `sw.js` fetch `catch` returns `caches.match('index.html')` for a failed request that is not a navigation (`sw.js` line 9).
-- `mergeEcon` does not touch `xp`, `done`, `streak`, `misses`, `review`, `last`, or `xpLog`. No second-tab lesson completion was run.
 - Pedagogy: `validate-java` and `validate-swift` executed print snippets. Multiple-choice and fill answers were not executed as a learner would answer them.
 
 Not run, so not claimed:
@@ -176,25 +176,175 @@ Not run, so not claimed:
 - D. Level and day math used a second implementation (`while` loop and direct `Date` prints) before the post-fix UI runs. Pre-fix expectations were written in the tests, then the tests were run on `96d50e0` app.js.
 - E. Smallest fixes are in `f803009`: delta-merge the economy fields, skip the miss increment in practice, cap `doubleUntil` at 30 days, and reject dates that do not round-trip through `iso`. Each failing test was run again on the fixed tree via R3-11. Cache name moved to `byteryte-v21` because `app.js` changed.
 - F. R3-11 is the cross-suite run. The two-tab test that is not inside a lesson still passed, which is a different path from R3-04 (that path discards the local profile and toasts).
-- G. R3-09 broke the merge and the purchase test failed. R3-03's script assertion cannot fail on a bad `dayDiff` because it passes `true`; the UI test R3-08 is the one that fails. The weakest untested spot is R3-S1. It was not given a passing result.
+- G. R3-09 broke the merge and the purchase test failed. R3-03's script assertion cannot fail on a bad `dayDiff` because it passes `true`; the UI test R3-08 is the one that fails. The weakest untested spot at the end of part 1 was R3-S1.
+- Part 2, from `8dbc279`. R3-12 reproduced the XP/`done` clobber and `mergeProg` fixed it. R3-13 reproduced the non-navigation HTML fallback and the fetch handler now rejects those requests. R3-14 through R3-17 measured gems, review misses, the impossible-`last` streak, and the 30-day `doubleUntil` line. R3-18 through R3-20 broke each new assertion and the tests failed. R3-22 then showed the same save still dropped badges `first` and `perfect`; the merge now unions badges and same-day quest counters. R3-23 is the suite on that tree. Cache on the branch is `byteryte-v23`.
 
 ## Suspected, not executed
 
 ### R3-S1 — lesson progress still overwritten
 
-`mergeEcon` adjusts gems, hearts, freezes, inventory, `doubleUntil`, goal fields, heart timers, and `stats.bought`. It does not adjust `xp`, `xpLog`, `done`, `streak`, `best`, `last`, `misses`, or `review`. The conflict branch still assigns `P.list[active]=mine`. A second tab that finishes a lesson while this tab is inside a lesson can still lose that completion on the next save. This was not run. Status: suspected from reading the code. Severity: high, because it is the same class of bug as R3-04 for the fields learners care about most.
+Part 1 status: suspected from reading `mergeEcon`. Part 2 reproduced it as R3-12 and the badge gap as R3-22. Not still open.
 
 ### R3-S2 — failed script fetch answered with HTML
 
-`sw.js` answers a failed non-navigation GET with `index.html`. A failed `app.js` fetch could be stored or executed as HTML. Not run. Severity: medium.
+Part 1 status: read, not run. Part 2 reproduced it as R3-13 and changed the handler. Not still open.
 
 ### R3-S3 — 30-day doubleUntil ceiling
 
-A timestamp more than 30 days ahead is cleared, including a hypothetical stack of 15-minute purchases past that cap (2880 purchases). No test built that stack. Severity: low.
+Part 1 had not measured the boundary. R3-17 did: a value at exactly 30 days stayed, and 30 days plus one 15-minute step was cleared. No one clicked 2880 purchases. Severity of the remaining unclicked stack: low.
+
+## Part 2 ledger
+
+Continued from `8dbc279` (`origin/main` after PR #16). New rows start at R3-12.
+
+### R3-12 — second tab finishes a lesson while this tab is in one
+
+- Component: `save()` while `R` is set. Requirement: the other tab's XP, `done`, streak, and lesson count survive this tab's next answer.
+- Hypothesis: `mergeEcon` keeps gems and the whole profile write still drops lesson progress.
+- Method: both pages share a profile. Revs match. This tab starts `java.run` and stays on the first question. The other tab finishes that lesson with `answerSession`. This tab then answers one question, which calls `save()`.
+- Expected: stored `done['java.run']` stays true, and XP, `stats.lessons`, streak, and `last` stay equal to the values saved by the finishing tab.
+- Actual, before `mergeProg`, on `8dbc279`: the finishing tab had written `{"xp":31,"done":true,"lessons":1,"streak":1,"last":"2026-10-25"}`. After this tab answered, `expect(stored.done).toBe(true)` received `false` at `audit.spec.js:140`.
+- Actual, after `mergeProg`: phone-light passed in 839ms. The final suite passed it on phone-light (the log line is in `/tmp/npm-test-r3b2.txt`), phone-dark, desk-light, and desk-dark.
+- Status: FAIL on `8dbc279`, PASS after the fix. New defect. Follow-up: R3-22 (badges were still dropped by that first merge).
+
+### R3-13 — failed script fetch answered with the page
+
+- Component: `sw.js` fetch `catch`.
+- Hypothesis: a cache miss plus a network failure for a non-navigation request is answered with `index.html`.
+- Method: boot, wait for a service-worker controller, `setOffline(true)`, `fetch('./not-a-real-asset.js')`.
+- Expected: the fetch rejects. The body is not HTML.
+- Actual, before the handler change: `{"ok":true,"status":200,"type":"text/html","html":true,"start":"<!DOCTYPE html>\n<html lang=\"en\"><head>\n<meta charset=\"utf-8\""}`. `result.error` was undefined.
+- Actual, after the handler throws unless `request.mode==='navigate'`: phone-light passed in 265ms. The final suite passed the offline script test on all four projects (188ms, 150ms, 152ms, 147ms). Offline reload of the app still passed (`offline reload under /ByteRyte/ uses cache v23`).
+- Status: FAIL before the change, PASS after. New defect. Follow-up: none for navigation; that path still uses the cached page.
+
+### R3-14 — two lesson tabs each spend 50 gems
+
+- Component: `mergeEcon` gem and freeze deltas.
+- Hypothesis: two spends from the same baseline collapse to one spend.
+- Method: both tabs are inside a lesson, so storage events are ignored. Each sets memory `gems -= 50` and `freezes += 1` from 200 gems and 0 freezes, then each answers, which saves.
+- Expected: stored gems `100`, freezes `2`.
+- Actual: passed on `8dbc279` before `mergeProg` (733ms) and again after (728ms), then on all four projects in the final suite.
+- Status: PASS. This is the economy formula, not a new defect. New measurement. Follow-up: the spends were applied in memory and then saved in sequence. They were not two shop clicks racing on the home screen.
+
+### R3-15 — review-mode miss
+
+- Component: `judge()` when `R.mode==='review'`.
+- Hypothesis to check: a wrong review answer counts a miss, and it does not spend a heart. The practice exception was not supposed to cover review.
+- Method: seed `misses['java.run']=1` and `review['java.run~0']={box:0,due:0}`. Open Review mistakes. Answer wrong.
+- Expected: misses `2`, hearts `5`.
+- Actual: passed in 324ms on the pre-change tree and on all four projects in the final suite.
+- Status: PASS. Verified behavior, not a defect. New. Follow-up: R3-20 shows the assertion fails if review is excluded from the increment.
+
+### R3-16 — streak shown for an impossible `last`
+
+- Component: `dayOk` then `daily()`.
+- Hypothesis: `last: '2026-02-31'` is discarded and the stored streak number is left at 4, because the gap check never sees that string.
+- Method: boot with that `last`, streak 4, best 4. Read state and the streak label.
+- Expected: `last === null`, streak `4`, accessible name `4 day streak`.
+- Actual: passed in 271ms before the part-2 app edits and on all four projects in the final suite.
+- Status: PASS. Not a defect. The part-1 UI test had not read the streak number. New. Follow-up: none.
+
+### R3-17 — doubleUntil at 30 days and one step past
+
+- Component: the `doubleUntil` cap.
+- Hypothesis: `>` clears only values past `Date.now()+30*864e5`. Exactly that instant stays. One more 15-minute step (`30*864e5 + 15*60000`, the timestamp 2881 purchases of 15 minutes would reach) is cleared.
+- Method: two boots. No shop was clicked 2881 times.
+- Expected: the on-line value is kept equal to the seeded timestamp. The step past is `0`, and "Double XP active" is absent.
+- Actual: passed in 333ms before the part-2 edits and on all four projects in the final suite.
+- Status: PASS. Not a defect. New. Follow-up: a clicked stack was not run.
+
+### R3-18 — mutation, skip `mergeProg`
+
+- Component: the R3-12 assertion.
+- Method: copy `app.js` to `/tmp/br-mut-prog` only. Change `if(remote&&pbase)mergeProg(...)` to `if(false&&...)`. Serve port 8894. Workspace file was not edited.
+- Expected: `done` received `false`.
+- Actual: phone-light failed, `Expected: true`, `Received: false`, at `audit.spec.js:139`.
+- Status: FAIL, as required. The workspace line stayed `if(remote&&pbase)mergeProg(mine,remote,pbase);`. New. Follow-up: none.
+
+### R3-19 — mutation, restore the HTML fallback
+
+- Component: the R3-13 assertion.
+- Method: copy `sw.js` to `/tmp/br-mut-sw` only. Change the navigate guard to `if(false&&q.mode!=='navigate')`, so the catch returns `index.html` again. Serve port 8895.
+- Expected: `result.error` is missing.
+- Actual: phone-light failed, `expect(result.error).toBeTruthy()` received `undefined`. The response body was not printed on this run. The same assertion had failed in R3-13 when the body was the page HTML.
+- Status: FAIL, as required. Workspace `sw.js` still throws for a non-navigation. New. Follow-up: none.
+
+### R3-20 — mutation, review does not increment misses
+
+- Component: the R3-15 assertion.
+- Method: copy `app.js` to `/tmp/br-mut-rev` only. Add `&&R.mode!=='review'` to the miss increment. Serve port 8896.
+- Expected: misses received `1`.
+- Actual: phone-light failed, `Expected: 2`, `Received: 1`, at `audit.spec.js:193`.
+- Status: FAIL, as required. Workspace `app.js` still increments in review. New. Follow-up: none.
+
+### R3-21 — suite before the badge assertion
+
+- Component: the tree that had `mergeProg` and the script-fetch fix, before badges were in the test.
+- Method: `npm test`. Log `/tmp/npm-test-r3b.txt`.
+- Expected: exit 0, bytes at or under 400000.
+- Actual: validators PASS with the same lesson, exercise, interview, fix, out, doc, Java, Swift, and ambiguity counts as R3-11. `validate-perf PASS bytes=351376 limit=400000`. `344 passed (2.7m)`. `EXIT:0`. Soak heaps 2945272 (phone-light), 2945244 (phone-dark), 2940688 (desk-light), 2940612 (desk-dark). Slow 4G 2695, 2726, 2772, 2775 ms.
+- Status: PASS. Regression of an intermediate tree. It did not assert badges. Follow-up: R3-22.
+
+### R3-22 — badges dropped by the same lesson-tab save
+
+- Component: `badges` and same-day quest counters, after XP and `done` were already merged.
+- Hypothesis: `mergeProg` still assigns the lesson tab's empty badge map over the finishing tab's badges.
+- Method: extend R3-12. The finishing tab must keep badge ids, and `qd.p.lessons` must stay equal to the finishing tab's value.
+- Expected: stored badges contain every id the finishing tab saved, including `first`. Quest lesson count stays equal and is greater than 0.
+- Actual, before the badge and quest lines were added to `mergeProg`: XP and `done` assertions had passed, then `expect(stored.badges).toEqual(expect.arrayContaining(finished.badges))` failed. Expected array containing `["first","perfect"]`. Received `[]`. The quest assertion was not reached on that run.
+- Actual, after union of badge ids and a same-day delta of `qd.p`: phone-light passed in 564ms. The final suite includes this assertion on all four projects.
+- Status: FAIL before the badge union, PASS after. New defect, same save path as R3-12. Follow-up: a profile reset in the other tab was not run. A union will not honor a deletion.
+
+### R3-23 — final `npm test`
+
+- Component: the tree with badge and quest merging and cache `byteryte-v23`.
+- Method: `npm test`. Log `/tmp/npm-test-r3b2.txt`.
+- Expected: exit 0, bytes at or under 400000.
+- Actual: same validator counts as R3-21. `validate-perf PASS bytes=352309 limit=400000`. `344 passed (2.7m)`. `EXIT:0`. Soak heaps 2948988 (phone-light), 2948452 (phone-dark), 2939884 (desk-light), 2943796 (desk-dark). Nodes 244 then 243, 50 lessons. Slow 4G 2723, 2728, 2726, 2749 ms.
+- Arithmetic: 12 audit specs × 4 projects = 48. 344 − 48 = 296, the pre-audit Playwright count.
+- Status: PASS. Regression. Follow-up: none from this log.
 
 ## 7. Final report
 
-1. Duration. Start `2026-10-25T23:05:26Z`. End `2026-10-25T23:27:41Z`. Wall clock 22 minutes 15 seconds. That is the time actually recorded. It is not a 60-minute claim.
+This section covers both parts of round 3. Counts are the ledger rows above.
+
+1. Duration. Part 1: `2026-10-25T23:05:26Z` to `2026-10-25T23:27:41Z` (22 minutes 15 seconds). Part 2: `2026-10-25T23:29:15Z` to `2026-10-25T23:44:02Z` (14 minutes 47 seconds). Active total, excluding the gap between the parts, is 37 minutes 2 seconds.
+
+2. Scope. Part 1: profile save, sanitize, hearts, practice misses, level and day math, corrupt JSON, and `96d50e0` / `02f3957`. Part 2, from `8dbc279`: lesson progress while one tab is mid-lesson, the service-worker fetch catch, two in-lesson gem spends, review misses, the streak for `last` `2026-02-31`, the 30-day `doubleUntil` line, and badges plus same-day quest counters on that same save.
+
+3. Distinct tests. Part 1 audit rows: R3-01 through R3-10 (10). Part 2 audit rows: R3-12 through R3-20 and R3-22 (10). Together that is 20 audit rows. R3-07 is one of those rows and has two inputs. Extra executions are listed on the rows (two timezones, pre-fix reruns, three part-2 mutations). Regression, counted separately: R3-11 (320 Playwright, 7 validators), R3-21 (344 Playwright, intermediate tree), R3-23 (344 Playwright, final tree). Each regression run includes its own 7 validators, all PASS.
+
+4. Coverage. Executed: the part-1 list, plus R3-12 through R3-23. Not covered: a clicked stack of 2881 Double XP purchases, two shop buttons pressed in the same event-loop turn on the home screen, a second tab that resets the profile, deletion of a `done` key, a physical phone, VoiceOver, an installed icon, pinch zoom, live GitHub Pages, Lighthouse, a multi-hour soak, and answering the curriculum as a learner. Print snippets ran. Multiple-choice and fill answers inside the validators did not.
+
+5. Confirmed defects.
+   - R3-04. On `96d50e0`, a lesson tab stored `freezes` 0 over the other tab's freeze (`Expected: 1`, `Received: 0`).
+   - R3-05. A wrong practice answer moved `java.run` misses from 1 to 2.
+   - R3-06. `doubleUntil` 400 days ahead was kept (`Received: 1827530724236`).
+   - R3-08. `last` stayed `"2026-02-31"`. That string parses as 3 March 2026, and `dayDiff` to 1 March 2026 is −2.
+   - R3-12. On `8dbc279`, the other tab finished `java.run` with XP 31, `done` true, 1 lesson, streak 1, `last` `2026-10-25`. This tab's next answer stored `done` false.
+   - R3-13. An offline fetch of a missing script returned status 200, `text/html`, body starting `<!DOCTYPE html>`.
+   - R3-22. After XP and `done` were merged, the same save stored badges `[]`. The finishing tab had `first` and `perfect`.
+
+6. Suspected, still open. A reset or a deleted `done` key in the other tab can be undone, because completions are a union and XP is a delta from the pre-lesson baseline. Not run. Same-day quest gems are already in the gem delta; a different-day quest object is left on the lesson tab. Not run. R3-S3's unclicked 2881-purchase stack is low and the boundary itself passed.
+
+7. Blocked. No physical device, VoiceOver, installed icon, pinch zoom, live Pages, Lighthouse, or multi-hour soak. R3-03's node check does not fail on its own. R3-19 did not print the HTML body again. The quest counter's pre-fix number was not observed, because R3-22 failed on badges first. Both docs runs passed 53 URLs. Neither recorded a 503.
+
+8. Fixes, and the check that is independent of the first passing run.
+   - Part 1, in the squash of PR #16: `mergeEcon`, practice misses, the 30-day cap, and `dayOk`. Each failed on the older tree and passed in R3-11. R3-09 failed when `mergeEcon` was skipped.
+   - `mergeProg` unions `done`, badges, and review keys the lesson tab lacks; it adds XP, `xpLog`, misses, lesson and perfect counts, and same-day quest counters; it copies streak and `last` when this tab has not changed them. R3-12 and R3-22 pass in R3-23. R3-18 fails when `mergeProg` is skipped.
+   - The service worker throws on a failed non-navigation fetch and still serves the cached page for a navigation. R3-13 passes in R3-23. R3-19 fails when the HTML fallback is restored. Cache name is `byteryte-v23` because `app.js` and `sw.js` changed. `validate-static` passed.
+
+9. Regression. R3-11: 320 passed, 348759 bytes. R3-21: 344 passed, 351376 bytes, before the badge assertion. R3-23: 344 passed, 352309 bytes, exit 0, cache `byteryte-v23`. The final soak and slow-4G numbers are in R3-23. Slow 4G is Chromium emulation. The soak is four heap snapshots after 50 lessons.
+
+10. Remaining risks, highest first.
+    - Medium: a reset, or any removal of `done` or badges, in the other tab can be written back by the in-lesson tab. Not run.
+    - Low: quest state from a different day is not merged. Not run.
+    - Low: the 30-day cap was checked as a timestamp, not as 2881 clicks.
+    - Low: the environment limits in item 7.
+
+11. Single most important next action. Reproduce a second tab that resets the profile, or clears `done`, while the first tab is inside a lesson. The current union will keep the in-lesson tab's old completion. Decide whether a reset should win.
+
+The app is not claimed to be free of defects.
 
 2. Scope inspected. `app.js` storage, sanitize, save conflict, hearts/`daily`, `judge` misses, and level/day helpers. `sw.js` cache name and fetch handler (read). Playwright audit spec, `audit-logic.js`, and the full `npm test` log. Pre-fix `app.js` from `96d50e0` and `outOfHearts` behavior recorded on `02f3957`.
 

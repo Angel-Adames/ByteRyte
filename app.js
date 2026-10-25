@@ -102,8 +102,11 @@ function hydrate(){
   S=P.active?P.list[P.active]:null}
 const econBases={};
 function econSnap(p){return {gems:p.gems,hearts:p.hearts,freezes:p.freezes||0,fifty:(p.inv&&p.inv.fifty)||0,skip:(p.inv&&p.inv.skip)||0,doubleUntil:p.doubleUntil||0,goal:p.goal,goalDay:p.goalDay??null,heartAt:p.heartAt??null,heartDay:p.heartDay??null,bought:(p.stats&&p.stats.bought)||0}}
-function rememberEcon(p){if(p&&p.id)econBases[p.id]=econSnap(p)}
-function rememberAll(){Object.keys(econBases).forEach(k=>delete econBases[k]);Object.values(P.list||{}).forEach(rememberEcon)}
+const progBases={};
+function copyMap(o){const out={};if(o&&typeof o==='object'&&!Array.isArray(o))Object.keys(o).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;out[k]=o[k]});return out}
+function progSnap(p){const st=p.stats||{},q=p.qd&&typeof p.qd==='object'?p.qd:{};return {xp:p.xp||0,streak:p.streak||0,best:p.best||0,last:p.last??null,lessons:st.lessons||0,perfect:st.perfect||0,xpLog:copyMap(p.xpLog),done:copyMap(p.done),misses:copyMap(p.misses),badges:copyMap(p.badges),qday:q.day||null,qp:copyMap(q.p),qclaimed:copyMap(q.claimed),qchest:!!q.chest}}
+function rememberEcon(p){if(p&&p.id){econBases[p.id]=econSnap(p);progBases[p.id]=progSnap(p)}}
+function rememberAll(){Object.keys(econBases).forEach(k=>delete econBases[k]);Object.keys(progBases).forEach(k=>delete progBases[k]);Object.values(P.list||{}).forEach(rememberEcon)}
 function mergeEcon(mine,remote,base){
   const add=(r,m,b,lo,hi)=>Math.max(lo,Math.min(hi,Math.round(r+(m-b))));
   mine.gems=add(remote.gems||0,mine.gems||0,base.gems,0,1e9);
@@ -121,6 +124,36 @@ function mergeEcon(mine,remote,base){
   mine.stats.bought=add((remote.stats&&remote.stats.bought)||0,mine.stats.bought||0,base.bought,0,1e9);
   sanitize(mine);
 }
+function mergeProg(mine,remote,base){
+  const add=(r,m,b,lo,hi)=>Math.max(lo,Math.min(hi,Math.round((r||0)+((m||0)-(b||0)))));
+  mine.xp=add(remote.xp,mine.xp,base.xp,0,1e9);
+  const days=new Set([...Object.keys(base.xpLog||{}),...Object.keys(remote.xpLog||{}),...Object.keys(mine.xpLog||{})]);
+  mine.xpLog=copyMap(mine.xpLog);
+  days.forEach(d=>{const v=add(remote.xpLog&&remote.xpLog[d],mine.xpLog[d],base.xpLog&&base.xpLog[d],0,1e9);if(v)mine.xpLog[d]=v;else delete mine.xpLog[d]});
+  mine.done=copyMap(mine.done);
+  Object.keys(remote.done||{}).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;if(remote.done[k])mine.done[k]=true});
+  const mk=new Set([...Object.keys(base.misses||{}),...Object.keys(remote.misses||{}),...Object.keys(mine.misses||{})]);
+  mine.misses=copyMap(mine.misses);
+  mk.forEach(k=>{const v=add(remote.misses&&remote.misses[k],mine.misses[k],base.misses&&base.misses[k],0,1e9);if(v)mine.misses[k]=v;else delete mine.misses[k]});
+  if(!mine.stats||typeof mine.stats!=='object')mine.stats={};
+  mine.stats.lessons=add(remote.stats&&remote.stats.lessons,mine.stats.lessons,base.lessons,0,1e9);
+  mine.stats.perfect=add(remote.stats&&remote.stats.perfect,mine.stats.perfect,base.perfect,0,1e9);
+  if(mine.streak===base.streak&&(mine.last??null)===(base.last??null)){mine.streak=remote.streak||0;mine.last=remote.last??null;mine.best=Math.max(mine.best||0,remote.best||0)}
+  else{const rl=remote.last??null,ml=mine.last??null,last=!ml?rl:!rl?ml:(ml>=rl?ml:rl);if(last&&last===ml&&last===rl)mine.streak=Math.max(mine.streak||0,remote.streak||0);else if(last===rl)mine.streak=remote.streak||0;mine.last=last;mine.best=Math.max(mine.best||0,remote.best||0,mine.streak||0)}
+  mine.review=mine.review&&typeof mine.review==='object'&&!Array.isArray(mine.review)?mine.review:{};
+  Object.keys(remote.review||{}).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;if(!mine.review[k])mine.review[k]=remote.review[k]});
+  mine.badges=copyMap(mine.badges);
+  Object.keys(remote.badges||{}).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;if(!mine.badges[k])mine.badges[k]=remote.badges[k]});
+  if(mine.qd&&remote.qd&&mine.qd.day&&mine.qd.day===remote.qd.day&&mine.qd.day===base.qday){
+    const qk=new Set([...Object.keys(base.qp||{}),...Object.keys(remote.qd.p||{}),...Object.keys(mine.qd.p||{})]);
+    mine.qd.p=copyMap(mine.qd.p);
+    qk.forEach(k=>{const v=add(remote.qd.p&&remote.qd.p[k],mine.qd.p[k],base.qp&&base.qp[k],0,1e9);if(v)mine.qd.p[k]=v;else delete mine.qd.p[k]});
+    mine.qd.claimed=copyMap(mine.qd.claimed);
+    Object.keys(remote.qd.claimed||{}).forEach(k=>{if(remote.qd.claimed[k])mine.qd.claimed[k]=1});
+    if(remote.qd.chest||base.qchest)mine.qd.chest=true;
+  }
+  sanitize(mine);
+}
 hydrate();
 rememberAll();
 function writeStore(k,v){try{localStorage.setItem(k,v);return true}catch(e){toast('This browser blocked saving. Free some space and try again.');return false}}
@@ -133,10 +166,11 @@ const save=()=>{
   const latest=readStore(PK);
   if(latest&&typeof latest==='object'&&!Array.isArray(latest)&&(latest.rev||0)>(P.rev||0)){
     if((R||remoteNewer)&&active&&mine){
-      const base=econBases[active];
+      const base=econBases[active],pbase=progBases[active];
       P=latest;hydrate();
       const remote=P.list[active];
       if(remote&&base)mergeEcon(mine,remote,base);
+      if(remote&&pbase)mergeProg(mine,remote,pbase);
       P.list[active]=mine;P.active=active;S=mine;remoteNewer=false;
       Object.keys(P.list).forEach(id=>{if(id!==active)rememberEcon(P.list[id])});
     }else{

@@ -1,7 +1,7 @@
 import { test, expect } from './console.js';
 import { boot } from './helpers.js';
 
-test('offline reload under /ByteRyte/ uses cache v21', async ({ page }, testInfo) => {
+test('offline reload under /ByteRyte/ uses cache v23', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.ready);
@@ -9,11 +9,11 @@ test('offline reload under /ByteRyte/ uses cache v21', async ({ page }, testInfo
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   const cached = await page.evaluate(async () => {
     const keys = await caches.keys();
-    const cache = await caches.open('byteryte-v21');
+    const cache = await caches.open('byteryte-v23');
     const urls = (await cache.keys()).map(r => r.url);
     return { keys, boot: urls.some(u => u.endsWith('/boot.js')) };
   });
-  expect(cached.keys).toContain('byteryte-v21');
+  expect(cached.keys).toContain('byteryte-v23');
   expect(cached.boot).toBe(true);
   await page.context().setOffline(true);
   await page.reload();
