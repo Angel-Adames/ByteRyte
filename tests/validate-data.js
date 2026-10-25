@@ -29,9 +29,13 @@ for (const t of TRACKS) {
     }
   }
 }
+const seenIv = new Map();
 IV.forEach((e, i) => {
   if (!e.tag || !e.track) bad('iv meta ' + i);
   checkEx('iv-' + i + ' ' + e.tag, e);
+  const key = JSON.stringify([e.t, e.q, e.code || '', e.opts || e.lines || []]);
+  if (seenIv.has(key)) bad('duplicate interview ' + i + ' matches ' + seenIv.get(key));
+  else seenIv.set(key, i);
 });
 
 function checkEx(id, e) {
@@ -80,6 +84,65 @@ assert(p.curriculum === 2, 'curriculum stamp');
 const again = JSON.parse(JSON.stringify(p));
 migrateProgress(again);
 assert(again.done['java.types'] && again.saved['iv-3'] === 4 && again.gates.css, 'second pass keeps ids');
+
+const historical = {
+  java: [['java.types','java.strings','java.control','java.methods','java.arrays'],['java.classes','java.inherit','java.interfaces','java.refs','java.exceptions'],['java.lists','java.maps','java.lambdas','java.records','java.sort'],['java.recursion','java.bigo','java.threads'],['java.solid','java.files','java.junit','java.patterns'],['java.abs','java.genmethods','java.checked','java.pipes','java.records2','java.enums','java.bigo2']],
+  javafx: [['fx.life','fx.layout','fx.events','fx.css','fx.tasks'],['fx.alerts','fx.windows','fx.lists']],
+  css: [['css.html','css.box','css.flex','css.responsive','css.vars'],['css.forms','css.position','css.a11y']],
+  swift: [['swift.basics','swift.values','swift.errors','swift.protocols','swift.enums'],['swift.strings','swift.throws','swift.lists']],
+};
+const every = { done: { 'java-0-9': 1, 'note': 1 }, review: {}, misses: {}, saved: {} };
+for (const [track, units] of Object.entries(historical)) {
+  units.forEach((lessons, ui) => lessons.forEach((id, li) => {
+    const k = track + '-' + ui + '-' + li;
+    every.done[k] = 1;
+    every.review[k + '-0'] = { box: 1 };
+    every.misses[k] = 3;
+    every.saved[k + '-2'] = 4;
+  }));
+}
+migrateProgress(every);
+for (const [track, units] of Object.entries(historical)) {
+  units.forEach((lessons, ui) => lessons.forEach((id, li) => {
+    const k = track + '-' + ui + '-' + li;
+    assert(every.done[id] === 1 && !every.done[k], 'done ' + k + ' -> ' + id);
+    assert(every.review[id + '~0'] && every.review[id + '~0'].box === 1 && !every.review[k + '-0'], 'review ' + id);
+    assert(every.misses[id] === 3 && !every.misses[k], 'miss ' + id);
+    assert(every.saved[id + '~2'] === 4 && !every.saved[k + '-2'], 'saved ' + id);
+  }));
+}
+assert(every.done['java-0-9'] === 1 && every.done.note === 1, 'unknown and out-of-range keys stay');
+assert(every.gates && every.gates.css && every.gates.javafx, 'complete old unit 1 opens both gates');
+assert(every.curriculum === 2, 'historical stamp');
+const partial = { done: { 'java-0-0': 1, 'java-0-1': 1 }, curriculum: 1 };
+migrateProgress(partial);
+assert(partial.done['java.types'] && partial.done['java.strings'] && !partial.done['java.control'] && !partial.gates, 'curriculum 1 partial unit does not open gates');
+const blank = {};
+migrateProgress(blank);
+assert(blank.curriculum === 2 && blank.done && !blank.done['java.types'], 'empty save only gets the stamp');
+
+function has(s) { if (!src.includes(s)) bad('missing wording: ' + s); }
+function lacks(s) { if (src.includes(s)) bad('stale wording: ' + s); }
+lacks('arrays are the next lesson');
+has('Methods is the next lesson');
+lacks('Tap the useless arm');
+has('The default arm compiles, and it never runs');
+has('runs init() on the launcher thread');
+has('updateProgress and progressProperty report progress');
+lacks('finally always runs');
+has('unless the process exits first');
+lacks('Interface methods are public. Interface fields');
+has('An interface may also declare private methods');
+lacks('There is no zero-argument sort on a list');
+has('Collections.sort(list) or list.sort(Comparator.naturalOrder())');
+lacks('own/parent font size');
+has('on font-size it uses the parent');
+lacks('await does not block the thread');
+has('await suspends this task');
+lacks('new code should not use it');
+has('NavigationView is deprecated');
+lacks('display: none (and visibility: hidden) remove');
+has('Among these four, only display: none');
 
 if (issues.length) {
   console.error('validate-data FAIL ' + issues.length);
