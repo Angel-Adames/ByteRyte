@@ -9,7 +9,7 @@ const bad = m => issues.push(m);
 const app = read('app.js'), sw = read('sw.js'), index = read('index.html'), manifest = read('manifest.webmanifest'), css = read('style.css');
 const all = [app, sw, index, manifest, css, read('data.js'), read('interview.js'), read('README.md')].join('\n');
 
-if (!/const C='byteryte-v13'/.test(sw)) bad('service worker cache is not byteryte-v13');
+if (!/const C='byteryte-v14'/.test(sw)) bad('service worker cache is not byteryte-v14');
 if (!/start_url"\s*:\s*"\.\/"/.test(manifest) || !/"scope"\s*:\s*"\.\/"/.test(manifest)) bad('manifest start_url and scope must stay relative ./');
 if (!/serviceWorker\.register\('sw\.js'\)/.test(index)) bad('service worker must register as sw.js');
 if (/register\(['"]\/|register\(['"]https?:/.test(index)) bad('service worker registration is not relative');

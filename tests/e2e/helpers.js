@@ -100,6 +100,6 @@ export async function overflow(page) {
   });
 }
 
-export function isDeep(testInfo) {
-  return testInfo.project.name === 'desk-light' || testInfo.project.name === 'phone-dark';
+export function isDeep() {
+  return true;
 }

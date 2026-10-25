@@ -6,7 +6,7 @@ import path from 'path';
 
 function deep(name, fn) {
   test(name, async ({ page }, testInfo) => {
-    test.skip(!isDeep(testInfo), 'deep pass runs on phone-dark and desk-light');
+    test.skip(!isDeep(testInfo), 'deep pass runs on all four projects');
     await fn({ page, testInfo });
   });
 }
