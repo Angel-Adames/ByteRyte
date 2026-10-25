@@ -28,6 +28,7 @@ function sanitize(p){
   p.freezes=Math.round(finite(p.freezes,0,0,2));
   const g=Number(p.goal);p.goal=[10,30,50,100].includes(g)?g:30;
   p.doubleUntil=finite(p.doubleUntil,0,0,null);
+  if(p.doubleUntil>Date.now()+30*864e5)p.doubleUntil=0;
   if(p.heartAt==null||!Number.isFinite(Number(p.heartAt)))p.heartAt=null;else p.heartAt=Number(p.heartAt);
   p.name=String(p.name==null?'Learner':p.name).replace(/[\u0000-\u001f]/g,'').trim().slice(0,24)||'Learner';
   p.avatar=String(p.avatar==null?'🦊':p.avatar).replace(/[\u0000-\u001f]/g,'').slice(0,32)||'🦊';
@@ -68,7 +69,7 @@ function sanitize(p){
     Object.keys(p.qd.claimed).forEach(k=>{if(!questIds[k])delete p.qd.claimed[k];else p.qd.claimed[k]=1});
   }else delete p.qd;
   if(typeof TRACKS==='undefined'||!TRACKS.some(t=>t.id===p.track))p.track='java';
-  const dayOk=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s);
+  const dayOk=s=>{if(typeof s!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;const d=new Date(s+'T12:00');return !isNaN(d.getTime())&&iso(d)===s};
   if(p.last!=null&&!dayOk(p.last))p.last=null;
   if(p.heartDay!=null&&!dayOk(p.heartDay))p.heartDay=null;
   if(p.goalDay!=null&&!dayOk(p.goalDay))p.goalDay=null;
@@ -99,7 +100,29 @@ function hydrate(){
     P.list[id]=merged});
   if(!P.active||!P.list[P.active])P.active=Object.keys(P.list)[0]||null;
   S=P.active?P.list[P.active]:null}
+const econBases={};
+function econSnap(p){return {gems:p.gems,hearts:p.hearts,freezes:p.freezes||0,fifty:(p.inv&&p.inv.fifty)||0,skip:(p.inv&&p.inv.skip)||0,doubleUntil:p.doubleUntil||0,goal:p.goal,goalDay:p.goalDay??null,heartAt:p.heartAt??null,heartDay:p.heartDay??null,bought:(p.stats&&p.stats.bought)||0}}
+function rememberEcon(p){if(p&&p.id)econBases[p.id]=econSnap(p)}
+function rememberAll(){Object.keys(econBases).forEach(k=>delete econBases[k]);Object.values(P.list||{}).forEach(rememberEcon)}
+function mergeEcon(mine,remote,base){
+  const add=(r,m,b,lo,hi)=>Math.max(lo,Math.min(hi,Math.round(r+(m-b))));
+  mine.gems=add(remote.gems||0,mine.gems||0,base.gems,0,1e9);
+  mine.hearts=add(remote.hearts||0,mine.hearts||0,base.hearts,0,5);
+  mine.freezes=add(remote.freezes||0,mine.freezes||0,base.freezes,0,2);
+  mine.inv=mine.inv&&typeof mine.inv==='object'?mine.inv:{};
+  mine.inv.fifty=add((remote.inv&&remote.inv.fifty)||0,mine.inv.fifty||0,base.fifty,0,999);
+  mine.inv.skip=add((remote.inv&&remote.inv.skip)||0,mine.inv.skip||0,base.skip,0,999);
+  mine.doubleUntil=Math.max(0,(remote.doubleUntil||0)+((mine.doubleUntil||0)-base.doubleUntil));
+  if(mine.goal===base.goal)mine.goal=remote.goal;
+  if(mine.goalDay===base.goalDay)mine.goalDay=remote.goalDay;
+  if(mine.heartAt===base.heartAt)mine.heartAt=remote.heartAt;
+  if(mine.heartDay===base.heartDay)mine.heartDay=remote.heartDay;
+  if(!mine.stats||typeof mine.stats!=='object')mine.stats={};
+  mine.stats.bought=add((remote.stats&&remote.stats.bought)||0,mine.stats.bought||0,base.bought,0,1e9);
+  sanitize(mine);
+}
 hydrate();
+rememberAll();
 function writeStore(k,v){try{localStorage.setItem(k,v);return true}catch(e){toast('This browser blocked saving. Free some space and try again.');return false}}
 const saveG=()=>writeStore(GK,JSON.stringify(G));
 let syncing=false,remoteNewer=false;
@@ -110,17 +133,23 @@ const save=()=>{
   const latest=readStore(PK);
   if(latest&&typeof latest==='object'&&!Array.isArray(latest)&&(latest.rev||0)>(P.rev||0)){
     if((R||remoteNewer)&&active&&mine){
+      const base=econBases[active];
       P=latest;hydrate();
+      const remote=P.list[active];
+      if(remote&&base)mergeEcon(mine,remote,base);
       P.list[active]=mine;P.active=active;S=mine;remoteNewer=false;
+      Object.keys(P.list).forEach(id=>{if(id!==active)rememberEcon(P.list[id])});
     }else{
-      P=latest;hydrate();remoteNewer=false;
+      P=latest;hydrate();rememberAll();remoteNewer=false;
       toast('Another tab saved newer progress. This tab is showing that copy.');
       if(!R){const n=cur||'learn';cur='';show(n)}
       return false;
     }
   }
   P.rev=(P.rev||0)+1;
-  return writeStore(PK,JSON.stringify(P));
+  const wrote=writeStore(PK,JSON.stringify(P));
+  if(wrote&&S)rememberEcon(S);
+  return wrote;
 };
 const HREG=30*60*1000;
 function regen(){if(S.hearts>=5){S.heartAt=null;return}if(!S.heartAt){S.heartAt=Date.now();return}const n=Math.floor((Date.now()-S.heartAt)/HREG);if(n>0){S.hearts=Math.min(5,S.hearts+n);S.heartAt=S.hearts>=5?null:S.heartAt+n*HREG;save()}}
@@ -414,7 +443,7 @@ function settings(){cur='settings';daily();
   $('#ua').onclick=()=>{if(!tap('unlock'))return;S.unlockAll=!S.unlockAll;save();settings()};
   $$('[data-g]').forEach(b=>b.onclick=()=>{if(!tap('goal'))return;S.goal=+b.dataset.g;save();settings()});
   $('#exp').onclick=()=>{const blob=new Blob([JSON.stringify({app:'ByteRyte',v:2,profiles:P,settings:G},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`byteroots-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
-  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}const prev=readStore(PK);P.rev=Math.max(P.rev||0,prev&&prev.rev||0);save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
+  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();rememberAll();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}const prev=readStore(PK);P.rev=Math.max(P.rev||0,prev&&prev.rev||0);save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
   $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;S=n;save();land('learn')}};
 }
 // ---------- lesson engine ----------
@@ -476,7 +505,7 @@ function judge(ok,ans){
   if(ok){R.done++;if(first){R.correct++;qBump('correct')}sfx.ok();buzz(15);
     if(S.review[k]&&first){const b=S.review[k].box+1;if(b>3)delete S.review[k];else S.review[k]={box:b,due:Date.now()+[0,1,3,7][b]*DAY}}}
   else{R.mist.add(k);sfx.no();buzz([40,40,60]);S.review[k]={box:0,due:Date.now()};
-    if(!k.startsWith('iv')){const lk=k.split('~')[0];S.misses[lk]=(S.misses[lk]||0)+1}
+    if(!k.startsWith('iv')&&R.mode!=='practice'){const lk=k.split('~')[0];S.misses[lk]=(S.misses[lk]||0)+1}
     if(!timed()&&R.mode!=='placement'&&R.mode!=='review')R.q.push(it);else R.done++;
     if(!noHearts()){if(S.hearts>=5)S.heartAt=Date.now();S.hearts=Math.max(0,S.hearts-1)}
     $('.qmain').classList.add('shake');if($('#hs'))$('#hs').textContent='❤️ '+S.hearts}
