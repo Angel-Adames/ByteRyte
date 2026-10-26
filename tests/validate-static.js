@@ -7,14 +7,15 @@ const read = f => fs.readFileSync(path.join(root, f), 'utf8');
 const issues = [];
 const bad = m => issues.push(m);
 const app = read('app.js'), sw = read('sw.js'), index = read('index.html'), manifest = read('manifest.webmanifest'), css = read('style.css'), boot = read('boot.js');
-const all = [app, sw, index, manifest, css, boot, read('data.js'), read('interview.js'), read('README.md')].join('\n');
+const all = [app, sw, index, manifest, css, boot, read('data.js'), read('interview.js'), read('rytia.js'), read('README.md')].join('\n');
 
-if (!/const C='byteryte-v25'/.test(sw)) bad('service worker cache is not byteryte-v25');
+if (!/const C='byteryte-v26'/.test(sw)) bad('service worker cache is not byteryte-v26');
 if (!app.includes('aria-labelledby="appear"')) bad('appearance group has no name');
 if (!app.includes('aria-labelledby="prompt"')) bad('answer group has no name');
 if (!app.includes('Adds 15 minutes. A lesson you start while it is active earns 2× XP')) bad('double xp copy');
 if (!app.includes('Level up: +20') || !app.includes('Daily quest: +15') || !app.includes('All 3 quests: +25')) bad('shop gem list');
 if (!sw.includes("'boot.js'")) bad('service worker precache is missing boot.js');
+if (!sw.includes("'rytia.js'")) bad('service worker precache is missing rytia.js');
 if (!/start_url"\s*:\s*"\.\/"/.test(manifest) || !/"scope"\s*:\s*"\.\/"/.test(manifest)) bad('manifest start_url and scope must stay relative ./');
 if (!/serviceWorker\.register\('sw\.js'\)/.test(boot)) bad('service worker must register as sw.js');
 if (/register\(['"]\/|register\(['"]https?:/.test(boot + index)) bad('service worker registration is not relative');

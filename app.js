@@ -12,7 +12,7 @@ const AVATAR_NAMES=['Fox','Panda','Octopus','Owl','Frog','Tiger','Koala','Unicor
 const NEWP=(name='Learner',avatar='🦊')=>({id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,avatar,xp:0,streak:0,best:0,last:null,hearts:5,heartDay:today(),done:{},review:{},misses:{},xpLog:{},gems:50,freezes:0,inv:{fifty:1,skip:1},doubleUntil:0,goal:30,goalDay:null,badges:{},saved:{},dlog:{},stats:{answered:0,correct:0,perfect:0,lessons:0,interviews:0,bestIv:0,reviews:0,challenges:0},onboarded:false,track:'java',unlockAll:false,created:Date.now(),curriculum:2,gates:{}});
 // ---------- storage + migration ----------
 const readStore=k=>{try{const t=localStorage.getItem(k);return t?JSON.parse(t):null}catch(e){return null}};
-let G=Object.assign({theme:'system',sound:true,big:false},readStore(GK)||{});
+let G=Object.assign({theme:'system',sound:true,big:false,rytia:true},readStore(GK)||{});
 let P=readStore(PK);
 if(!P||typeof P!=='object'||Array.isArray(P)){P={active:null,list:{}};const old=readStore('byteroots-v1');
   if(old&&typeof old==='object'&&!Array.isArray(old)){const p=Object.assign(NEWP(),{xp:old.xp||0,streak:old.streak||0,done:old.done||{},review:old.review||{},misses:old.misses||{},saved:old.saved||{},track:old.track||'java',onboarded:true,curriculum:old.curriculum});
@@ -236,7 +236,7 @@ function daily(){ // refill hearts at midnight, streak freeze handling, then pay
 // ---------- theme / sound / toast ----------
 const mq=matchMedia('(prefers-color-scheme: dark)');
 const standalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}};
-const applyTheme=()=>{if(!['system','light','dark'].includes(G.theme))G.theme='system';G.sound=!!G.sound;G.big=!!G.big;const d=G.theme==='dark'||(G.theme==='system'&&mq.matches);document.documentElement.dataset.theme=d?'dark':'light';$('meta[name=theme-color]').content=d?'#0b1220':'#16a34a';document.documentElement.toggleAttribute('data-big',!!G.big);document.documentElement.toggleAttribute('data-standalone',standalone())};
+const applyTheme=()=>{if(!['system','light','dark'].includes(G.theme))G.theme='system';G.sound=!!G.sound;G.big=!!G.big;G.rytia=G.rytia!==false;const d=G.theme==='dark'||(G.theme==='system'&&mq.matches);document.documentElement.dataset.theme=d?'dark':'light';$('meta[name=theme-color]').content=d?'#0b1220':'#16a34a';document.documentElement.toggleAttribute('data-big',!!G.big);document.documentElement.toggleAttribute('data-standalone',standalone())};
 mq.addEventListener?.('change',applyTheme);applyTheme();
 let AC;const tone=(f,d=.12,t=0,type='sine')=>{if(!G.sound)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(.0001,AC.currentTime+t);g.gain.exponentialRampToValueAtTime(.15,AC.currentTime+t+.02);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+t+d);o.connect(g).connect(AC.destination);o.start(AC.currentTime+t);o.stop(AC.currentTime+t+d+.05)}catch(e){}};
 const sfx={ok:()=>{tone(660);tone(880,.15,.09)},no:()=>{tone(220,.2,0,'triangle')},win:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.18,i*.11)),coin:()=>{tone(988,.08);tone(1319,.15,.07)}};
@@ -500,6 +500,7 @@ function settings(){cur='settings';daily();
   shell(`<h1 class="h1">Settings</h1>
   <div class="set"><b id="appear">Appearance</b><div class="seg" role="radiogroup" aria-labelledby="appear">${['system','light','dark'].map(t=>`<button role="radio" aria-checked="${G.theme===t}" class="${G.theme===t?'on':''}" data-th="${t}">${{system:'🖥 System',light:'☀️ Light',dark:'🌙 Dark'}[t]}</button>`).join('')}</div></div>
   <div class="set row"><b>Sound effects</b><button class="switch ${G.sound?'on':''}" id="snd" role="switch" aria-checked="${G.sound}" aria-label="Sound effects"><i></i></button></div>
+  <div class="set row"><div><b>Ask Rytia why</b><p class="muted" style="margin:2px 0 0">After a wrong answer, a button can open a short note</p></div><button class="switch ${G.rytia?'on':''}" id="ry" role="switch" aria-checked="${G.rytia}" aria-label="Ask Rytia why"><i></i></button></div>
   <div class="set row"><div><b>Larger text</b><p class="muted" style="margin:2px 0 0">Bigger type and buttons for readability</p></div><button class="switch ${G.big?'on':''}" id="big" role="switch" aria-checked="${G.big}" aria-label="Larger text"><i></i></button></div>
   <div class="set row"><b>Unlock all lessons</b><button class="switch ${S.unlockAll?'on':''}" id="ua" role="switch" aria-checked="${S.unlockAll}" aria-label="Unlock all lessons"><i></i></button></div>
   <div class="set"><b>Daily goal</b><div class="seg" role="radiogroup" aria-label="Daily goal">${[10,30,50,100].map(g=>`<button role="radio" aria-checked="${S.goal===g}" class="${S.goal===g?'on':''}" data-g="${g}">${g} XP</button>`).join('')}</div></div>
@@ -509,11 +510,12 @@ function settings(){cur='settings';daily();
   <p class="note">ByteRyte · original app, not affiliated with any other language-learning brand. All data stays on this device.</p>`);
   $$('[data-th]').forEach(b=>b.onclick=()=>{if(!tap('theme-'+b.dataset.th))return;G.theme=b.dataset.th;saveG();applyTheme();settings()});
   $('#snd').onclick=()=>{if(!tap('sound'))return;G.sound=!G.sound;saveG();settings()};
+  $('#ry').onclick=()=>{if(!tap('rytia'))return;G.rytia=!G.rytia;saveG();settings()};
   $('#big').onclick=()=>{if(!tap('big'))return;G.big=!G.big;saveG();applyTheme();settings()};
   $('#ua').onclick=()=>{if(!tap('unlock'))return;S.unlockAll=!S.unlockAll;save();settings()};
   $$('[data-g]').forEach(b=>b.onclick=()=>{if(!tap('goal'))return;S.goal=+b.dataset.g;save();settings()});
   $('#exp').onclick=()=>{const blob=new Blob([JSON.stringify({app:'ByteRyte',v:2,profiles:P,settings:G},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`byteroots-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
-  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false},d.settings);saveG();applyTheme()}hydrate();Object.keys(P.list).forEach(id=>{if(P.list[id])P.list[id].gen=(P.list[id].gen||0)+1});rememberAll();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}const prev=readStore(PK);P.rev=Math.max(P.rev||0,prev&&prev.rev||0);save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
+  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false,rytia:true},d.settings);saveG();applyTheme()}hydrate();Object.keys(P.list).forEach(id=>{if(P.list[id])P.list[id].gen=(P.list[id].gen||0)+1});rememberAll();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}const prev=readStore(PK);P.rev=Math.max(P.rev||0,prev&&prev.rev||0);save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
   $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;n.gen=(S.gen||0)+1;S=n;save();land('learn')}};
 }
 // ---------- lesson engine ----------
@@ -559,16 +561,49 @@ function next(){
   const chk=$('#chk');
   if(e.t==='ar'){const bank=$('#bank'),ans=$('#ans');
     shuffle(e.lines.map((x,i)=>[x,i])).forEach(([x])=>{const c=document.createElement('button');c.className='chip';c.innerHTML=hl(x);c.dataset.raw=x;c.onclick=()=>{$('.ph')?.remove();(c.parentNode===bank?ans:bank).appendChild(c);chk.disabled=bank.children.length>0;tone(520,.04)};bank.appendChild(c)});
-    chk.onclick=()=>{if(!once(chk))return;judge([...ans.children].map(c=>c.dataset.raw).join('\n')===e.lines.join('\n'),e.lines.join('\n'))}}
+    chk.onclick=()=>{if(!once(chk))return;judge([...ans.children].map(c=>c.dataset.raw).join('\n')===e.lines.join('\n'),e.lines.join('\n'),null)}}
   else{$$('.opt').forEach(b=>b.onclick=()=>{if(b.disabled||!once(b))return;$$('.opt').forEach(o=>{o.classList.remove('sel');o.setAttribute('aria-checked','false')});b.classList.add('sel');b.setAttribute('aria-checked','true');sel=+b.dataset.i;chk.disabled=false;tone(520,.04)});
     chk.onclick=()=>{if(!once(chk))return;$$('.opt').forEach(o=>{o.disabled=true;if(+o.dataset.i===e.a)o.classList.add('right');else if(+o.dataset.i===sel)o.classList.add('wrong')});
-      judge(sel===e.a,e.t==='bug'?`Line ${e.a+1}: ${e.lines[e.a].trim()}`:e.opts[e.a])}}
+      judge(sel===e.a,e.t==='bug'?`Line ${e.a+1}: ${e.lines[e.a].trim()}`:e.opts[e.a],sel)}}
   if($('#ff'))$('#ff').onclick=()=>{if(!once($('#ff'))||!S.inv.fifty)return;const wrong=shuffle($$('.opt').filter(o=>+o.dataset.i!==e.a&&!o.disabled)).slice(0,2);wrong.forEach(o=>{o.disabled=true;o.classList.add('gone');o.classList.remove('sel')});let n=1;$$('.opt').forEach(o=>{const kbd=o.querySelector('kbd');if(!kbd)return;kbd.textContent=o.disabled?'':String(n++)});if(wrong.some(o=>+o.dataset.i===sel)){sel=null;chk.disabled=true}S.inv.fifty--;save();$('#ff').disabled=true;$('#ff b').textContent=S.inv.fifty;buzz(12)};
   if($('#sk'))$('#sk').onclick=()=>{if(!once($('#sk')))return;S.inv.skip--;save();R.q.shift();R.done++;R.res.push({e,ok:null});toast('⏭️ Skipped');next()};
 }
 function shield(ms=450){const ft=$('#ft');if(!ft)return;ft.style.pointerEvents='none';const token=String(Date.now()+Math.random());ft.dataset.shield=token;setTimeout(()=>{if(ft.isConnected&&ft.dataset.shield===token)ft.style.pointerEvents=''},ms)}
 function quit(){if(confirm('Quit? Progress in this session will be lost.')){clearInterval(timerId);clearInterval(heartWatch);R=null;navBack(home)}}
-function judge(ok,ans){
+const RYTIA_FACE='<svg class="rytia-face" viewBox="0 0 32 32" width="28" height="28" aria-hidden="true" focusable="false"><rect x="1.5" y="1.5" width="29" height="29" rx="10" fill="currentColor"/><circle cx="11" cy="14" r="2" fill="#fff"/><circle cx="21" cy="14" r="2" fill="#fff"/><path d="M11 21.5c1.6 2 8.4 2 10 0" fill="none" stroke="#fff" stroke-width="1.7" stroke-linecap="round"/><path d="M23 3.2c1.2 2.2.4 4.4-1.2 5.2 2.4.2 4.2-1.4 4.6-3.6-1.6-.2-2.4-.8-3.4-1.6z" fill="#bbf7d0"/></svg>';
+let rytiaP;
+function loadRytia(){
+  if(window.RYTIA)return Promise.resolve(window.RYTIA);
+  if(rytiaP)return rytiaP;
+  rytiaP=new Promise((res,rej)=>{
+    const s=document.createElement('script');
+    s.src='rytia.js';
+    s.onload=()=>{if(window.RYTIA)res(window.RYTIA);else{rytiaP=null;rej(new Error('rytia'))}};
+    s.onerror=()=>{s.remove();rytiaP=null;rej(new Error('rytia'))};
+    document.head.appendChild(s);
+  });
+  return rytiaP;
+}
+function closeRytia(){
+  const card=$('#rytia-card'),btn=$('#rytia');
+  if(!card||card.hidden)return false;
+  card.hidden=true;card.innerHTML='';
+  if(btn){btn.setAttribute('aria-expanded','false');btn.dataset.busy='0';btn.focus()}
+  return true;
+}
+function showRytia(btn,row,picked){
+  const card=$('#rytia-card');
+  if(!btn||!card||!btn.isConnected)return;
+  const sum=row&&typeof row.s==='string'&&row.s?row.s:'Rytia\u2019s note is not on this device yet. Use the explanation above.';
+  const note=row&&row.n&&picked!==''&&picked!=null&&row.n[String(picked)]?row.n[String(picked)]:'';
+  card.innerHTML=`<div class="rytia-top">${RYTIA_FACE}<p id="rytia-name" class="rytia-name">Rytia · your study helper</p><button type="button" class="rytia-x" id="rytia-x" aria-label="Close Rytia">\u2715</button></div><p class="rytia-sum">${esc(sum)}</p>${note?`<p class="rytia-note">${esc(note)}</p>`:''}`;
+  card.hidden=false;
+  btn.setAttribute('aria-expanded','true');
+  btn.dataset.busy='0';
+  const x=$('#rytia-x');
+  if(x)x.onclick=()=>{closeRytia()};
+}
+function judge(ok,ans,sel){
   const it=R.q.shift(),{e,k}=it,first=!R.mist.has(k);
   S.stats.answered++;if(ok)S.stats.correct++;{const x=dl();x.a++;if(ok)x.c++}
   R.res.push({e,ok,first});
@@ -583,8 +618,18 @@ function judge(ok,ans){
   save();
   if(R.mode==='challenge'){if(ok)qBump('chal');document.body.classList.remove('fl-ok','fl-no');void document.body.offsetWidth;document.body.classList.add(ok?'fl-ok':'fl-no');if(!ok)toast('✗ '+(e.t==='bug'?'Line '+(e.a+1):e.t==='ar'?'Wrong order':e.opts[e.a]));return next()}
   const ft=$('#ft');ft.className='foot sheet '+(ok?'ok':'no');ft.setAttribute('role','alert');
-  ft.innerHTML=`<div class="in"><h2 class="fbh">${ok?['Nice!','Correct!','You got it!','Solid!','Exactly!'][Math.random()*5|0]:'Not quite'}</h2>${ok?'':`<p class="ca"><b>Correct answer:</b></p><pre class="code sm" tabindex="0">${hl(ans)}</pre>`}<p>${esc(e.why)}</p><div class="fbx">${docLink(docUrl(k))}<button class="bm" id="bm" aria-pressed="${!!S.saved[k]}">${S.saved[k]?'★ Saved':'☆ Save question'}</button></div><button class="btn ${ok?'':'red'}" id="cont">Continue</button></div>`;
+  const ask=!ok&&G.rytia!==false?`<button type="button" class="rytia-ask" id="rytia" aria-expanded="false" aria-controls="rytia-card" data-k="${esc(k)}" data-i="${sel==null?'':String(sel)}">${RYTIA_FACE}<span>Ask Rytia why</span></button><div id="rytia-card" class="rytia-card" hidden role="region" aria-live="polite" aria-label="Rytia · your study helper"></div>`:'';
+  ft.innerHTML=`<div class="in"><h2 class="fbh">${ok?['Nice!','Correct!','You got it!','Solid!','Exactly!'][Math.random()*5|0]:'Not quite'}</h2>${ok?'':`<p class="ca"><b>Correct answer:</b></p><pre class="code sm" tabindex="0">${hl(ans)}</pre>`}<p>${esc(e.why)}</p><div class="fbx">${docLink(docUrl(k))}<button class="bm" id="bm" aria-pressed="${!!S.saved[k]}">${S.saved[k]?'★ Saved':'☆ Save question'}</button></div>${ask}<button class="btn ${ok?'':'red'}" id="cont">Continue</button></div>`;
   $('#bm').onclick=()=>{if(S.saved[k])delete S.saved[k];else S.saved[k]=Date.now();save();const on=!!S.saved[k];$('#bm').textContent=on?'★ Saved':'☆ Save question';$('#bm').setAttribute('aria-pressed',on);if(on){S.stats.saved=(S.stats.saved||0)+1;checkBadges()}};
+  if($('#rytia'))$('#rytia').onclick=()=>{
+    const btn=$('#rytia'),card=$('#rytia-card');
+    if(!btn||!card)return;
+    if(!card.hidden){closeRytia();return}
+    if(btn.dataset.busy==='1')return;
+    btn.dataset.busy='1';
+    const key=btn.dataset.k,picked=btn.dataset.i;
+    loadRytia().then(data=>{if(btn.isConnected)showRytia(btn,data&&data[key],picked)}).catch(()=>{if(btn.isConnected)showRytia(btn,null,picked)});
+  };
   requestAnimationFrame(()=>requestAnimationFrame(()=>ft.classList.add('show')));shield();
   $('#cont').focus({preventScroll:true});
   $('#cont').onclick=()=>{if(!once($('#cont')))return;if(!ok&&!noHearts()){daily();if(S.hearts<=0){clearInterval(timerId);return outOfHearts()}}next()};
@@ -633,8 +678,8 @@ document.addEventListener('keydown',ev=>{if(ev.target.tagName==='INPUT')return;c
   if(/^[1-9]$/.test(k)&&$('#bank')){const c=$$('#bank .chip')[+k-1];if(c){c.click();ev.preventDefault()}return}
   if(k==='Backspace'&&$('#ans')){const c=[...$$('#ans .chip')].pop();if(c){c.click();ev.preventDefault()}return}
   if(/^[1-9]$/.test(k)){const o=$$('.opt').filter(o=>!o.disabled)[+k-1];if(o){o.click();ev.preventDefault()}}
-  else if(k==='Enter'){const b=$('#cont')||(!$('#chk')?.disabled&&$('#chk'))||$('#go')||$('#h');if(b&&document.activeElement!==b){b.click();ev.preventDefault()}}
-  else if(k==='Escape'&&$('#x'))$('#x').click();
+  else if(k==='Enter'){const ae=document.activeElement;if(ae&&(ae.id==='rytia'||ae.id==='rytia-x'||(ae.closest&&ae.closest('#rytia-card'))))return;const b=$('#cont')||(!$('#chk')?.disabled&&$('#chk'))||$('#go')||$('#h');if(b&&ae!==b){b.click();ev.preventDefault()}}
+  else if(k==='Escape'){if(closeRytia()){ev.preventDefault();return}if($('#x'))$('#x').click()}
   else if((k==='h'||k==='H')&&$('#ff')&&!$('#ff').disabled)$('#ff').click();
   else if((k==='s'||k==='S')&&$('#sk')&&!$('#sk').disabled&&!$('#cont'))$('#sk').click()});
 // ---------- boot ----------
@@ -645,7 +690,7 @@ addEventListener('popstate',onPop);
 histLock=true;restore(history.state);histLock=false;
 addEventListener('storage',e=>{
   if(e.key===GK&&e.newValue){
-    try{const g=JSON.parse(e.newValue);if(g&&typeof g==='object'&&!Array.isArray(g)){G=Object.assign({theme:'system',sound:true,big:false},g);applyTheme()}}catch(err){}
+    try{const g=JSON.parse(e.newValue);if(g&&typeof g==='object'&&!Array.isArray(g)){G=Object.assign({theme:'system',sound:true,big:false,rytia:true},g);applyTheme()}}catch(err){}
     return;
   }
   if(e.key!==PK||!e.newValue)return;

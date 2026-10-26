@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Uncompressed first-load budget. The service worker precaches these same files.
+// Uncompressed first-load budget. The service worker also precaches rytia.js, which loads only after Ask Rytia why.
 const fs = require('fs');
 const path = require('path');
 const root = path.resolve(__dirname, '..');
