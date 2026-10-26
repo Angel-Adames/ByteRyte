@@ -8,6 +8,8 @@ Part 2 started `2026-10-25T23:29:15Z` from `origin/main` `8dbc279` and closed `2
 
 Part 3 started `2026-10-25T23:46:17Z` from `origin/main` `daaa413` (cache `byteryte-v23`) and closed `2026-10-26T00:00:29Z` (14 minutes 12 seconds). Active time for all three parts, not counting the gaps between user messages, is 51 minutes 14 seconds. Fix commit on this branch: `7840da4`. Cache shipped with the fix: `byteryte-v24`.
 
+Part 4 started `2026-10-26T00:28:34Z` from `origin/main` `70a9a02` (cache `byteryte-v24`) and closed `2026-10-26T00:36:49Z` (8 minutes 15 seconds). This part is after the round 3 total above. Fix commit: `20a56e1`. Cache shipped with the fix: `byteryte-v25`.
+
 Base commit: `96d50e0` (`origin/main` at the start, cache `byteryte-v20`). Fix commit on this branch: `f803009`. Cache shipped with the fix: `byteryte-v21`.
 
 ## Ledger
@@ -396,5 +398,64 @@ This section covers parts 1, 2, and 3 of round 3. Counts are the ledger rows abo
     - Low: the environment limits in item 7.
 
 11. Single most important next action. Reproduce a second tab that deletes one `done` key, without incrementing `gen`, while the first tab is inside a lesson. The union will put that key back. Decide whether every deletion must bump `gen`, or only reset and import.
+
+The app is not claimed to be free of defects.
+
+### R3-29 — a removed `done` key comes back
+
+- Component: `mergeProg` union of `done` and badges when `gen` does not rise.
+- UI check, by reading `app.js` on `70a9a02`: no handler assigns `done` to false or deletes one `done` key. A finished lesson's node calls `start` again, and finishing sets that key true. `checkBadges` only adds badges. Settings can reset the profile or import a backup, and both bump `gen`. A completed node was not clicked in the browser. The removal below was written into storage, which is the save a tab would have committed.
+- Hypothesis: the lesson tab still has the key, so the next save puts it back.
+- Method: `tests/e2e/audit.spec.js` "a lesson tab does not restore a done key the other tab removed". Ada, XP 80, `done['java.run']`, badge `first`. Both revs match, this tab is on Check. The other page deletes `java.run` and `first`, leaves `gen` unchanged, and increments `rev`. This tab answers.
+- Expected: `done` false, badge absent, `gen` still the planted value.
+- Actual, pre-fix `70a9a02`, phone-light, 1.1s: `expect(stored.done).toBe(false)` received `true` at `audit.spec.js:343`. The badge assertion was not reached.
+- Actual, fixed code: phone-light passed in 454ms before the suite. `/tmp/npm-test-r3d.txt` shows 456ms, 330ms, 357ms, and 363ms on the four projects.
+- Status: FAIL on `70a9a02`, PASS on `20a56e1`. New defect. Follow-up: the pre-fix badge value was not observed.
+
+### R3-30 — a graduated review card comes back on the lesson tab's save
+
+- Component: `delete S.review[k]` when a card's box passes 3, then the other tab's `mergeProg`.
+- Method: seed `review['java.run~0']` at box 3, due 1. This tab starts a lesson. The other tab opens Practice, presses Review mistakes, and answers correctly. That is the real button path.
+- First run, before this tab answered: phone-light on `70a9a02` passed in 1.0s. The graduating tab's own save left the card gone.
+- Method, the failing save: the same steps, then this tab answers.
+- Expected: the card stays absent, and `java.run` stays done.
+- Actual, pre-fix `70a9a02`, phone-light, 583ms: `expect(stored.review).toBe(false)` received `true` at `audit.spec.js:373`.
+- Actual, fixed code: phone-light passed in 568ms before the suite. The suite log shows 534ms, 420ms, 466ms, and 505ms.
+- Status: FAIL on `70a9a02` once the lesson tab saves, PASS on `20a56e1`. New defect. The graduating tab's own save was not the failure.
+
+### R3-31 — import while a lesson is open
+
+- Component: the import handler's `gen` bump, clicked in the browser.
+- Method: this tab is on Check with `java.run` done and badge `first`. The other tab opens Settings and imports a ByteRyte backup of the same profile with those two keys removed. The confirm dialog is accepted. Then this tab answers.
+- Expected: name Ada, both keys absent, `gen` greater than 0, and the answer does not restore the keys.
+- Actual, `70a9a02`, phone-light, 429ms, before `keep` existed: passed. The exact `gen` integer was not printed. After the fix, phone-light passed in 465ms. The suite log shows 539ms, 395ms, 389ms, and 481ms.
+- Status: PASS on `70a9a02` and on `20a56e1`. Not a defect. The import button was used. Follow-up: none from this run.
+
+### R3-32 — mutation, skip the removal check
+
+- Component: the R3-29 assertion.
+- Method: copy `app.js` to `/tmp/br-mut2/ByteRyte/app.js` only. Change the drop condition to `if(false&&baseM[k]&&!remoteM[k]&&unchanged(mineM[k],baseM[k]))return;`. Serve `http://127.0.0.1:8911/ByteRyte/` with `/tmp/pw-mut2.config.js`, phone-light. Workspace `app.js` was not edited. `rg` on the workspace found no `false&&`.
+- Expected: `done` received `true`.
+- Actual: phone-light failed in 374ms. `Expected: false`, `Received: true`, at `audit.spec.js:343`.
+- Status: FAIL, as required. The workspace line stayed `if(baseM[k]&&!remoteM[k]&&unchanged(mineM[k],baseM[k]))return;`. New. Follow-up: none.
+
+### R3-33 — final `npm test` for the removal merge
+
+- Component: the tree with `keep` and cache `byteryte-v25`.
+- Method: `npm test` from `tests/`. Log `/tmp/npm-test-r3d.txt`.
+- Expected: exit 0, bytes at or under 400000.
+- Actual: `validate-data PASS lessons=62 exercises=687 interview=140 fixes=62 outs=218`. `validate-static PASS`. `validate-docs PASS urls=53`. `validate-java PASS snippets=176 jdk=21`. `validate-swift PASS snippets=42 Swift version 6.0.3 (swift-6.0.3-RELEASE)`. `validate-ambiguity PASS arrange-duplicates=1`. `validate-perf PASS bytes=354292 limit=400000`. `364 passed (2.7m)`. `EXIT:0`. Soak heaps 2949824 (phone-light), 2949756 (phone-dark), 2944948 (desk-light), 2944948 (desk-dark). Nodes 244 then 243, 50 lessons, on each. Slow 4G 2753, 2715, 2745, 2759 ms.
+- Arithmetic: 17 audit specs × 4 projects = 68. 364 − 68 = 296, the same pre-audit Playwright count as R3-28.
+- Status: PASS. Regression. Follow-up: none from this log.
+
+## Part 4
+
+This part followed the next action in section 7. It is not folded into the 51 minute 14 second total.
+
+No screen removes one `done` key or one badge. Reset and import do, and both bump `gen`. R3-31 clicked import during a lesson on `70a9a02`: the backup's missing `java.run` and `first` stayed missing, and `gen` was greater than 0. The exact integer was not printed.
+
+A removal that does not bump `gen` was reproducible. R3-29 wrote that removal into storage and the lesson tab stored `java.run` done `true`. R3-30 used Practice → Review mistakes; the card stayed gone until the lesson tab answered, which stored it again (`review` received `true`). `keep` drops a baseline key the other tab removed when this tab has not changed it. R3-32 fails when that drop is skipped. R3-29 and R3-30 pass in R3-33. Cache is `byteryte-v25`.
+
+Still unverified: the pre-fix badge value in R3-29, a browser click on a finished lesson node, removing a saved question while a lesson is open, a clicked stack of 2881 Double XP purchases, and a physical phone, VoiceOver, installed icon, pinch zoom, live Pages, Lighthouse, or multi-hour soak.
 
 The app is not claimed to be free of defects.
