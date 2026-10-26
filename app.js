@@ -129,6 +129,13 @@ function mergeProg(mine,remote,base){
   const add=(r,m,b,lo,hi)=>Math.max(lo,Math.min(hi,Math.round((r||0)+((m||0)-(b||0)))));
   const bad=k=>k==='__proto__'||k==='constructor'||k==='prototype';
   const bumped=(remote.gen||0)>(base.gen||0);
+  const unchanged=(m,b)=>m===b||(!!m&&!!b&&typeof m==='object'&&typeof b==='object'&&m.box===b.box&&m.due===b.due);
+  const keep=(mineMap,remoteMap,baseMap)=>{
+    const out={},mineM=mineMap&&typeof mineMap==='object'?mineMap:{},remoteM=remoteMap&&typeof remoteMap==='object'?remoteMap:{},baseM=baseMap&&typeof baseMap==='object'?baseMap:{};
+    Object.keys(mineM).forEach(k=>{if(bad(k)||!mineM[k])return;if(baseM[k]&&!remoteM[k]&&unchanged(mineM[k],baseM[k]))return;out[k]=mineM[k]});
+    Object.keys(remoteM).forEach(k=>{if(bad(k)||!remoteM[k]||out[k])return;if(baseM[k]&&!mineM[k])return;out[k]=remoteM[k]});
+    return out;
+  };
   mine.xp=add(remote.xp,mine.xp,base.xp,0,1e9);
   const days=new Set([...Object.keys(base.xpLog||{}),...Object.keys(remote.xpLog||{}),...Object.keys(mine.xpLog||{})]);
   const mineLog=copyMap(mine.xpLog);
@@ -138,10 +145,7 @@ function mergeProg(mine,remote,base){
   if(bumped){
     mine.done=copyMap(remote.done);
     Object.keys(mineDone).forEach(k=>{if(bad(k))return;if(mineDone[k]&&!(base.done&&base.done[k]))mine.done[k]=true});
-  }else{
-    mine.done=mineDone;
-    Object.keys(remote.done||{}).forEach(k=>{if(bad(k))return;if(remote.done[k])mine.done[k]=true});
-  }
+  }else mine.done=keep(mineDone,remote.done,base.done);
   const mk=new Set([...Object.keys(base.misses||{}),...Object.keys(remote.misses||{}),...Object.keys(mine.misses||{})]);
   const mineMiss=copyMap(mine.misses);
   mine.misses={};
@@ -155,18 +159,12 @@ function mergeProg(mine,remote,base){
   if(bumped){
     mine.review=copyMap(remote.review);
     Object.keys(mineReview).forEach(k=>{if(bad(k))return;if(mineReview[k]&&!(base.review&&base.review[k]))mine.review[k]=mineReview[k]});
-  }else{
-    mine.review=mineReview;
-    Object.keys(remote.review||{}).forEach(k=>{if(bad(k))return;if(!mine.review[k])mine.review[k]=remote.review[k]});
-  }
+  }else mine.review=keep(mineReview,remote.review,base.review);
   const mineBadges=copyMap(mine.badges);
   if(bumped){
     mine.badges=copyMap(remote.badges);
     Object.keys(mineBadges).forEach(k=>{if(bad(k))return;if(mineBadges[k]&&!(base.badges&&base.badges[k]))mine.badges[k]=mineBadges[k]});
-  }else{
-    mine.badges=mineBadges;
-    Object.keys(remote.badges||{}).forEach(k=>{if(bad(k))return;if(!mine.badges[k])mine.badges[k]=remote.badges[k]});
-  }
+  }else mine.badges=keep(mineBadges,remote.badges,base.badges);
   const takeQ=q=>({day:q.day,ids:q.ids.slice(),p:copyMap(q.p),claimed:copyMap(q.claimed),chest:!!q.chest});
   if(bumped){
     if(remote.qd&&remote.qd.day){

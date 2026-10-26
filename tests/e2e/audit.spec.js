@@ -308,6 +308,124 @@ test('a newer quest day from the other tab replaces a stale quest day', async ({
   await other.close();
 });
 
+test('a lesson tab does not restore a done key the other tab removed', async ({ page }, testInfo) => {
+  await boot(page, testInfo, {
+    profile: {
+      name: 'Ada', xp: 80,
+      done: { 'java.run': true },
+      badges: { first: 1 },
+      stats: { lessons: 1, answered: 8, correct: 8 },
+    },
+  });
+  const other = await page.context().newPage();
+  await other.goto(page.url());
+  await expect(other.getByText('Daily goal', { exact: true })).toBeVisible();
+  await revsMatch(page, other);
+  await page.locator('.node.cur').click();
+  await page.getByRole('button', { name: 'Start lesson' }).click();
+  await expect(page.locator('#chk')).toBeVisible();
+  const planted = await other.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem('byteroots-profiles'));
+    const row = raw.list.ptest;
+    delete row.done['java.run'];
+    delete row.badges.first;
+    raw.rev = (raw.rev || 0) + 1;
+    localStorage.setItem('byteroots-profiles', JSON.stringify(raw));
+    return { gen: row.gen || 0, done: !!row.done['java.run'], badge: !!(row.badges && row.badges.first) };
+  });
+  expect(planted.done).toBe(false);
+  expect(planted.badge).toBe(false);
+  await answerOne(page);
+  const stored = await page.evaluate(() => {
+    const row = JSON.parse(localStorage.getItem('byteroots-profiles')).list.ptest;
+    return { done: !!row.done['java.run'], badge: !!(row.badges && row.badges.first), gen: row.gen || 0 };
+  });
+  expect(stored.done).toBe(false);
+  expect(stored.badge).toBe(false);
+  expect(stored.gen).toBe(planted.gen);
+  await other.close();
+});
+
+test('graduating a review card stays graduated while another tab is in a lesson', async ({ page }, testInfo) => {
+  await boot(page, testInfo, {
+    profile: {
+      name: 'Ada',
+      done: { 'java.run': true },
+      review: { 'java.run~0': { box: 3, due: 1 } },
+    },
+  });
+  const other = await page.context().newPage();
+  await other.goto(page.url());
+  await expect(other.getByText('Daily goal', { exact: true })).toBeVisible();
+  await revsMatch(page, other);
+  await page.locator('.node.cur').click();
+  await page.getByRole('button', { name: 'Start lesson' }).click();
+  await expect(page.locator('#chk')).toBeVisible();
+  await other.getByRole('button', { name: 'Practice', exact: true }).click();
+  await other.getByRole('button', { name: /Review mistakes/ }).click();
+  await expect(other.locator('#chk')).toBeVisible();
+  await answerOne(other);
+  await answerOne(page);
+  const stored = await page.evaluate(() => {
+    const row = JSON.parse(localStorage.getItem('byteroots-profiles')).list.ptest;
+    return { review: !!(row.review && row.review['java.run~0']), done: !!row.done['java.run'] };
+  });
+  expect(stored.review).toBe(false);
+  expect(stored.done).toBe(true);
+  await other.close();
+});
+
+test('import during a lesson keeps the backup and bumps gen', async ({ page }, testInfo) => {
+  await boot(page, testInfo, {
+    profile: {
+      name: 'Ada', xp: 80,
+      done: { 'java.run': true },
+      badges: { first: 1 },
+      stats: { lessons: 1, answered: 8, correct: 8 },
+    },
+  });
+  const other = await page.context().newPage();
+  other.on('dialog', (d) => d.accept());
+  await other.goto(page.url());
+  await expect(other.getByText('Daily goal', { exact: true })).toBeVisible();
+  await revsMatch(page, other);
+  await page.locator('.node.cur').click();
+  await page.getByRole('button', { name: 'Start lesson' }).click();
+  await expect(page.locator('#chk')).toBeVisible();
+  const backup = await other.evaluate(() => {
+    const raw = JSON.parse(localStorage.getItem('byteroots-profiles'));
+    const row = raw.list.ptest;
+    delete row.done['java.run'];
+    delete row.badges.first;
+    return JSON.stringify({ app: 'ByteRyte', v: 2, profiles: raw, settings: { theme: 'light', sound: false, big: false } });
+  });
+  await other.getByRole('button', { name: 'Settings', exact: true }).click();
+  await other.locator('#imp').setInputFiles({
+    name: 'backup.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(backup),
+  });
+  await expect(other.getByText('Daily goal', { exact: true })).toBeVisible();
+  const imported = await other.evaluate(() => {
+    const row = JSON.parse(localStorage.getItem('byteroots-profiles')).list.ptest;
+    return { done: !!row.done['java.run'], badge: !!(row.badges && row.badges.first), gen: row.gen || 0, name: row.name };
+  });
+  expect(imported.name).toBe('Ada');
+  expect(imported.done).toBe(false);
+  expect(imported.badge).toBe(false);
+  expect(imported.gen).toBeGreaterThan(0);
+  await answerOne(page);
+  const stored = await page.evaluate(() => {
+    const row = JSON.parse(localStorage.getItem('byteroots-profiles')).list.ptest;
+    return { done: !!row.done['java.run'], badge: !!(row.badges && row.badges.first), gen: row.gen || 0, name: row.name };
+  });
+  expect(stored.name).toBe('Ada');
+  expect(stored.done).toBe(false);
+  expect(stored.badge).toBe(false);
+  expect(stored.gen).toBe(imported.gen);
+  await other.close();
+});
+
 test('an offline failed script fetch is not answered with the page HTML', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
