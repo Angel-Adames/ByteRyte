@@ -41,6 +41,11 @@ function sentences(text) {
 }
 
 function mentions(summary, e) {
+  if (e.t === 'type') {
+    const canon = flat(e.canon);
+    if (canon.length <= 80) return summary.includes(canon);
+    return summary.includes(canon.slice(0, 24));
+  }
   if (e.t === 'ar') {
     const lines = e.lines.map(flat);
     if (lines.some(t => t.length >= 4 && t.length <= 60 && summary.includes(t))) return true;
@@ -53,8 +58,9 @@ function mentions(summary, e) {
 
 if (!RYTIA || typeof RYTIA !== 'object' || Array.isArray(RYTIA)) bad('self.RYTIA missing');
 const items = [];
-for (const t of TRACKS) for (const u of t.units) for (const l of u.lessons) {
-  l.ex.forEach((e, i) => items.push({ key: l.id + '~' + i, e }));
+for (const t of TRACKS) for (const u of t.units) {
+  for (const l of u.lessons) l.ex.forEach((e, i) => items.push({ key: l.id + '~' + i, e }));
+  if (u.quiz) u.quiz.ex.forEach((e, i) => items.push({ key: u.quiz.id + '~' + i, e }));
 }
 IV.forEach((e, i) => items.push({ key: 'iv-' + i, e }));
 
@@ -75,7 +81,7 @@ for (const it of items) {
   if (s === flat(it.e.why)) bad('summary copies the explanation ' + it.key);
   if (!mentions(row.s, it.e)) bad('summary misses the correct answer ' + it.key);
   if (/peer reviewed|duolingo|live (ai|model)/i.test(row.s)) bad('summary claim ' + it.key);
-  if (it.e.t === 'ar') {
+  if (it.e.t === 'ar' || it.e.t === 'type') {
     if (row.n && Object.keys(row.n).length) bad('arrange notes ' + it.key);
     continue;
   }

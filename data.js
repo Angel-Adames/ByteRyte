@@ -1,10 +1,11 @@
-// Exercise types: mc (multiple choice), out (what prints; code is verified by tests/verify), fill (code blank ___), ar (arrange lines), bug (tap the buggy line), fix (pick the corrected line)
+// Exercise types: mc (multiple choice), out (what prints; code is verified by tests/verify), fill (code blank ___), ar (arrange lines), bug (tap the buggy line), fix (pick the corrected line), type (typed code; grade is strict, space, or free)
 const M=(q,opts,a,why,code)=>({t:'mc',q,opts,a,why,code});
 const O=(code,opts,a,why)=>({t:'out',q:'What does this print?',code,opts,a,why});
 const F=(q,code,opts,a,why)=>({t:'fill',q,code,opts,a,why});
 const A=(q,lines,why)=>({t:'ar',q,lines,why});
 const B=(q,lines,a,why)=>({t:'bug',q,lines,a,why});
 const X=(q,code,opts,a,why)=>({t:'fix',q,code,opts,a,why});
+const W=(q,canon,why,o)=>{o=o||{};const grade=o.grade||'free';return {t:'type',q,canon,alts:o.alts||[],grade,semi:o.semi||(grade==='free'?'optional':'required'),quotes:!!o.quotes,why,before:o.before||'',after:o.after||'',out:o.out!=null?String(o.out):null,code:o.code||''}};
 const TRACKS=[
 {id:'java',name:'Java',color:'#f97316',icon:'☕',primary:true,units:[
 {name:'Unit 1 · Foundations',lessons:[
@@ -682,6 +683,16 @@ const SHEETS={
 };
 for(const id of Object.keys(SHEETS)){const l=L(id);if(l&&!l.sheet)l.sheet=SHEETS[id]}
 L('java.lists').tip+=' Interview questions also use ArrayDeque, a double-ended queue, and PriorityQueue, which hands back the smallest next. This lesson drills ArrayList first.';
+// Swift Essentials typed answers. Each canon and alt is compiled by tests/validate-swift.js.
+L('swift.basics').ex.push(W('Bind a constant x to the integer 5.','let x = 5','let binds a constant. Swift infers Int from the literal 5, so writing : Int names the same type. A trailing semicolon is legal in Swift and is not required.',{alts:['let x: Int = 5'],after:'print(x)',out:'5'}));
+L('swift.basics').ex.push(W('Add 1 to n. n is already declared.','n += 1','+= 1 adds one and stores it back. n = n + 1 does the same arithmetic and the same store. Both print 4 when n started at 3.',{alts:['n = n + 1'],before:'var n = 3',after:'print(n)',out:'4',code:'var n = 3'}));
+L('swift.basics').ex.push(W('Bind a constant name to the text Ada.','let name = "Ada"','Swift strings use double quotes. A one-line raw string #"Ada"# holds the same characters when the text has no quotes or hashes. Single quotes are not a Swift string.',{quotes:true,after:'print(name)',out:'Ada'}));
+L('swift.basics').ex.push(W('Type the expression that uses ?? so a nil name becomes Guest.','name ?? "Guest"','?? yields the right-hand value when the optional is nil, so a missing name becomes Guest. This check is strict: the spacing has to match, and a trailing semicolon is not accepted.',{grade:'strict',before:'let name: String? = nil\nlet shown =',after:'print(shown)',out:'Guest',code:'let name: String? = nil\nlet shown =\nprint(shown)'}));
+L('swift.basics').ex.push(W('Print x.','print(x)','print writes the value and a newline. Extra spaces around the call are ignored on this question. A semicolon is a separate statement and is not accepted here.',{grade:'space',before:'let x = 5',out:'5',code:'let x = 5'}));
+L('swift.values').ex.push(W('Copy the struct a into a new binding b.','var b = a','var b = a and let b = a both copy the struct. let only matters if you later assign through b. The copy is why b.x prints 1.',{alts:['let b = a'],before:'struct P { var x: Int }\nvar a = P(x: 1)',after:'print(b.x)',out:'1',code:'struct P { var x: Int }\nvar a = P(x: 1)'}));
+L('swift.errors').ex.push(W('Call load with try? and bind the result to text.','let text = try? load()','try? turns a thrown error into nil. Naming the type Int? states the optional that try? already produces. text == nil is true because load throws.',{alts:['let text: Int? = try? load()'],before:'enum E: Error { case bad }\nfunc load() throws -> Int { throw E.bad }',after:'print(text == nil)',out:'true',code:'enum E: Error { case bad }\nfunc load() throws -> Int { throw E.bad }'}));
+L('swift.protocols').ex.push(W('Bind total to the sum of nums, starting from 0.','let total = nums.reduce(0, +)','reduce walks the array, starting from 0. Passing + uses addition. The closure { $0 + $1 } is the same addition written out. The total is 6.',{alts:['let total = nums.reduce(0) { $0 + $1 }'],before:'let nums = [1, 2, 3]',after:'print(total)',out:'6',code:'let nums = [1, 2, 3]'}));
+L('swift.enums').ex.push(W('Set d to the south case.','d = .south','A case can be written with the type, Dir.south, or with a leading dot when the type is already known. Both store south, so the comparison is true.',{alts:['d = Dir.south'],before:'enum Dir { case north, south }\nvar d = Dir.north',after:'print(d == .south)',out:'true',code:'enum Dir { case north, south }\nvar d = Dir.north'}));
 
 const run={id:'java.run',name:'How a Program Runs',
 tip:'A .java file is text. javac compiles it to a .class file of bytecode, which is not machine code for your CPU. The java command starts a Java Virtual Machine, and that JVM loads the bytecode, checks it, and interprets it or JIT-compiles the hot parts to native code. The JVM is why one class file can run on another operating system. This course targets Java 21, the long-term-support release most jobs run today. Java 25 is the newer LTS. It still runs a classic public static void main(String[] args). It also allows a compact source file whose entry point is an instance void main() with no class wrapper. This course writes the classic form, because that is the form libraries and job code use.',
@@ -821,6 +832,14 @@ TRACKS.find(t=>t.id==='swift').units=[
   unit('essentials','Swift Essentials',['swift.basics','swift.values','swift.errors','swift.protocols','swift.enums']),
   unit('apps','Strings, SwiftUI & Concurrency',['swift.strings','swift.throws','swift.lists',observe,asyncL])
 ];
+TRACKS.find(t=>t.id==='swift').units.find(u=>u.uid==='essentials').quiz={id:'swift.essentials.quiz',name:'Unit check',pass:5,ex:[
+M('Which binding cannot be reassigned?',['var city = "Paris"','let city = "Paris"','var n = 1','n = 2'],1,'let is a constant binding. var can be assigned again. n = 2 is an assignment, and it is legal only when n was declared with var.'),
+W('Bind a constant count to 5.','let count = 5','let fixes count. Swift infers Int from 5, and an explicit : Int is the same binding. A trailing semicolon is allowed and not required.',{alts:['let count: Int = 5'],after:'print(count)',out:'5'}),
+O('struct Box { var n: Int }\nvar a = Box(n: 2)\nvar b = a\nb.n = 7\nprint(a.n)',['2','7','9','0'],0,'Box is a struct, so b = a copies the value. Changing b.n writes the copy. a.n stays 2.'),
+W('Add 1 to n.','n += 1','+= 1 and n = n + 1 both store one more than the current value. n started at 2, so either form prints 3.',{alts:['n = n + 1'],before:'var n = 2',after:'print(n)',out:'3',code:'var n = 2'}),
+M('A function throws. What does try? give you?',['The error value itself','nil','A crash','0'],1,'try? turns a thrown error into nil and a successful result into an optional. It does not crash and it does not hand you the error.'),
+W('Bind greeting to the text Hi.','let greeting = "Hi"','A Swift string uses double quotes. The raw form #"Hi"# is the same characters when the text is simple. Single quotes are not a string.',{quotes:true,after:'print(greeting)',out:'Hi'})
+]};
 if(Object.keys(bag).length)throw new Error('unplaced lessons: '+Object.keys(bag).join(','));
 const seen=new Set();
 for(const t of TRACKS)for(const u of t.units){

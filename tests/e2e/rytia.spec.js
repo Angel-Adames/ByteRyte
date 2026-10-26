@@ -129,7 +129,7 @@ test('offline Ask Rytia why still shows the saved summary', async ({ page }, tes
   await page.reload();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   const cached = await page.evaluate(async () => {
-    const cache = await caches.open('byteryte-v26');
+    const cache = await caches.open('byteryte-v27');
     const urls = (await cache.keys()).map((r) => r.url);
     return urls.some((u) => u.endsWith('/rytia.js'));
   });

@@ -388,7 +388,8 @@ deep('every lesson can be completed in order', async ({ page, testInfo }) => {
     }
   }
   const s = await state(page);
-  expect(s.done.length).toBe(62);
+  expect(s.done.length).toBe(63);
+  expect(s.done).toContain('swift.essentials.quiz');
   expect(s.lessons).toBe(62);
   expect(s.hearts).toBe(5);
   await expect(page.getByRole('tab', { name: /34\/34/ })).toBeVisible();

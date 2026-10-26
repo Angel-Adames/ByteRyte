@@ -135,6 +135,10 @@ test('reduced motion skips confetti', async ({ page }, testInfo) => {
           const chip = [...document.querySelectorAll('#bank .chip')].find((c) => c.dataset.raw === line);
           chip.click();
         }
+      } else if (e.t === 'type') {
+        const box = document.querySelector('#typebox');
+        box.value = e.canon;
+        box.dispatchEvent(new Event('input', { bubbles: true }));
       } else {
         document.querySelector('.opt[data-i="' + e.a + '"]').click();
       }
@@ -272,13 +276,13 @@ test('larger text keeps the home screen inside the viewport', async ({ page }, t
   expect(zoomed).toEqual([]);
 });
 
-test('service worker v26 replaces a v25 cache and tells an open tab to reload', async ({ page }, testInfo) => {
+test('service worker v27 replaces a v26 cache and tells an open tab to reload', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await page.evaluate(async () => {
-    const cache = await caches.open('byteryte-v25');
-    await cache.put(new Request(new URL('legacy-v25.txt', location.href)), new Response('old'));
+    const cache = await caches.open('byteryte-v26');
+    await cache.put(new Request(new URL('legacy-v26.txt', location.href)), new Response('old'));
     const reg = await navigator.serviceWorker.getRegistration();
     if (reg) await reg.unregister();
   });
@@ -286,8 +290,8 @@ test('service worker v26 replaces a v25 cache and tells an open tab to reload', 
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await expect.poll(async () => page.evaluate(async () => {
     const keys = await caches.keys();
-    return { v26: keys.includes('byteryte-v26'), v25: keys.includes('byteryte-v25') };
-  })).toEqual({ v26: true, v25: false });
+    return { v27: keys.includes('byteryte-v27'), v26: keys.includes('byteryte-v26') };
+  })).toEqual({ v27: true, v26: false });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new Event('controllerchange')));
   await expect(page.getByText('A new version of ByteRyte is ready. Reload to use it.')).toBeVisible();

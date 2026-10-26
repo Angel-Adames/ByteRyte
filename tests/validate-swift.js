@@ -7,6 +7,7 @@ const { spawn } = require('child_process');
 const root = path.resolve(__dirname, '..');
 const src = fs.readFileSync(path.join(root, 'data.js'), 'utf8') + '\n' + fs.readFileSync(path.join(root, 'interview.js'), 'utf8');
 const { TRACKS, IV } = new Function(src + '\nreturn {TRACKS, IV};')();
+const { acceptedSources } = require(path.join(root, 'grade.js'));
 
 const candidates = [
   process.env.SWIFT,
@@ -22,10 +23,29 @@ if (!swift) {
 const snippets = [];
 function take(code, expected, where) {
   if (!code || code.includes('System.out') || !code.includes('print(')) return;
-  snippets.push({ code, expected: String(expected), where });
+  snippets.push({ code, expected: String(expected), where, checkOut: true });
 }
-for (const t of TRACKS) for (const u of t.units) for (const l of u.lessons) {
-  l.ex.forEach((e, i) => { if (e.t === 'out') take(e.code, e.opts[e.a], l.id + '~' + i); });
+function takeTyped(e, where) {
+  if (!e || e.t !== 'type') return;
+  const forms = acceptedSources(e);
+  if (!forms.length) snippets.push({ code: '', expected: '', where: where + ' no forms', checkOut: false, fail: 'no accepted forms' });
+  forms.forEach(answer => {
+    const parts = [];
+    if (e.before) parts.push(e.before);
+    parts.push(answer);
+    if (e.after) parts.push(e.after);
+    snippets.push({ code: parts.join('\n') + '\n', expected: e.out == null ? null : String(e.out), where: where + ' :: ' + answer, checkOut: e.out != null });
+  });
+}
+for (const t of TRACKS) for (const u of t.units) {
+  for (const l of u.lessons) l.ex.forEach((e, i) => {
+    if (e.t === 'out') take(e.code, e.opts[e.a], l.id + '~' + i);
+    if (e.t === 'type') takeTyped(e, l.id + '~' + i);
+  });
+  if (u.quiz) u.quiz.ex.forEach((e, i) => {
+    if (e.t === 'out') take(e.code, e.opts[e.a], u.quiz.id + '~' + i);
+    if (e.t === 'type') takeTyped(e, u.quiz.id + '~' + i);
+  });
 }
 IV.forEach((e, i) => { if (e.t === 'out') take(e.code, e.opts[e.a], 'iv-' + i); });
 
@@ -47,11 +67,13 @@ function run(file) {
   async function worker() {
     while (cursor < snippets.length) {
       const s = snippets[cursor++];
+      if (s.fail) { bad.push(s.where + ' ' + s.fail); continue; }
       const file = path.join(dir, 's' + cursor + '.swift');
-      fs.writeFileSync(file, s.code + '\n');
+      fs.writeFileSync(file, s.code.endsWith('\n') ? s.code : s.code + '\n');
       const ran = await run(file);
       const got = ran.out.replace(/\r\n/g, '\n').replace(/\n$/, '');
-      if (ran.code !== 0 || got !== s.expected) bad.push(s.where + '\n expected ' + JSON.stringify(s.expected) + '\n got ' + JSON.stringify(got) + (ran.err ? '\n ' + ran.err.trim().split('\n').slice(-4).join(' | ') : ''));
+      const outBad = s.checkOut && got !== s.expected;
+      if (ran.code !== 0 || outBad) bad.push(s.where + '\n expected ' + JSON.stringify(s.expected) + '\n got ' + JSON.stringify(got) + (ran.err ? '\n ' + ran.err.trim().split('\n').slice(-4).join(' | ') : ''));
     }
   }
   await Promise.all(Array.from({ length: 3 }, worker));
