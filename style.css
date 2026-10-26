@@ -74,6 +74,14 @@ pre.code{background:var(--codebg);color:#e2e8f0;border-radius:14px;padding:14px;
 .sheet{transform:translateY(100%);transition:transform .3s cubic-bezier(.2,.9,.3,1.1);max-height:75vh;overflow:auto}.sheet.show{transform:none}
 .sheet.ok{background:var(--gl);border-color:color-mix(in srgb,var(--g) 30%,transparent)}.sheet.no{background:var(--rl);border-color:color-mix(in srgb,var(--r) 30%,transparent)}
 .sheet h3,.sheet .fbh{margin:0 0 6px;font-size:22px;font-weight:900}.sheet.ok h3,.sheet.ok .fbh{color:var(--gt)}.sheet.no h3,.sheet.no .fbh{color:var(--rt)}.sheet p{margin:0 0 12px;font-size:15px;line-height:1.45}.ca{margin:0!important}
+.rytia-ask{display:inline-flex;align-items:center;gap:8px;min-height:44px;margin:0 0 12px;padding:4px 12px 4px 4px;border-radius:999px;border:2px solid var(--line);background:var(--card);color:var(--ink);font-weight:800;font-size:14px;line-height:1.2;cursor:pointer;text-align:left}
+.rytia-face{width:28px;height:28px;color:var(--g);flex:none;display:block}
+.rytia-card{margin:0 0 12px;padding:10px 12px;border-radius:14px;border:2px solid var(--line);background:var(--card);color:var(--ink)}
+.rytia-card[hidden]{display:none!important}
+.rytia-top{display:flex;align-items:center;gap:8px}
+.sheet .rytia-name{margin:0;flex:1;font-size:13px;font-weight:800;color:var(--gt)}
+.sheet .rytia-sum,.sheet .rytia-note{margin:8px 0 0;font-size:14px;line-height:1.45}
+.rytia-x{margin-left:auto;min-width:44px;min-height:44px;border:0;background:transparent;border-radius:10px;cursor:pointer;font-size:16px;color:var(--mut)}
 .tip{background:#fefce8;border:2px solid #fde68a;border-radius:var(--rad);padding:16px;font-size:16px;line-height:1.55;color:#422006}[data-theme=dark] .tip{background:#2a2410;border-color:#5b4a12;color:#fde68a}
 .center{text-align:center;padding:20px 4px}.big{font-size:72px;animation:pop .6s}
 @keyframes pop{0%{transform:scale(0)}70%{transform:scale(1.2)}100%{transform:scale(1)}}
