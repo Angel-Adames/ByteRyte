@@ -4,7 +4,9 @@ Independent check of ByteRyte after cycles 1–200. Prior PASS results were trea
 
 Part 1 wall clock: start `2026-10-25T23:05:26Z` (`date -u` at the start of this audit). Part 1 report closed `2026-10-25T23:27:41Z` (22 minutes 15 seconds). The full `npm test` log at `/tmp/npm-test-audit.txt` shows Playwright traffic from `23:18:11` to `23:20:26` and `320 passed (2.6m)`. Close-out reproductions against pre-fix `app.js` ran at `23:25:15Z`.
 
-Part 2 started `2026-10-25T23:29:15Z` from `origin/main` `8dbc279` and closed `2026-10-25T23:44:02Z` (14 minutes 47 seconds). Active time for both parts, not counting the gap between them, is 37 minutes 2 seconds.
+Part 2 started `2026-10-25T23:29:15Z` from `origin/main` `8dbc279` and closed `2026-10-25T23:44:02Z` (14 minutes 47 seconds). Active time for parts 1 and 2, not counting the gap between them, is 37 minutes 2 seconds.
+
+Part 3 started `2026-10-25T23:46:17Z` from `origin/main` `daaa413` (cache `byteryte-v23`) and closed `2026-10-26T00:00:29Z` (14 minutes 12 seconds). Active time for all three parts, not counting the gaps between user messages, is 51 minutes 14 seconds. Fix commit on this branch: `7840da4`. Cache shipped with the fix: `byteryte-v24`.
 
 Base commit: `96d50e0` (`origin/main` at the start, cache `byteryte-v20`). Fix commit on this branch: `f803009`. Cache shipped with the fix: `byteryte-v21`.
 
@@ -304,17 +306,65 @@ Continued from `8dbc279` (`origin/main` after PR #16). New rows start at R3-12.
 - Arithmetic: 12 audit specs × 4 projects = 48. 344 − 48 = 296, the pre-audit Playwright count.
 - Status: PASS. Regression. Follow-up: none from this log.
 
+### R3-24 — a reset is written back by the lesson tab
+
+- Component: `mergeProg` union of `done` and badges, while `R` is set. Requirement: another tab's reset of this profile stays reset.
+- Hypothesis: the lesson tab's old `done` map is copied first, and the reset's empty map adds nothing, so `java.run` comes back.
+- Method: `tests/e2e/audit.spec.js` "a lesson tab does not restore progress the other tab reset". Profile Ada, XP 80, streak 2, `done['java.run']`, badge `first`, 1 lesson. Both pages reach the same `rev`. This tab starts the current lesson. The other tab opens Settings and presses `Reset Ada's progress` (confirm accepted). After Daily goal is visible, storage must show XP 0, `java.run` not done, no badges, name Ada. This tab then answers the open question.
+- Expected after that answer: `done` false, XP 0, badges `[]`, name Ada, `gen` greater than 0.
+- Actual, pre-fix `daaa413`, phone-light, 728ms: the assertions before the answer passed, then `expect(stored.done).toBe(false)` received `true` at `audit.spec.js:261`. The XP, badge, and `gen` assertions were not reached.
+- Actual, fixed code: phone-light passed in 701ms before the suite. `/tmp/npm-test-r3c.txt` shows the same test passed on phone-light (505ms), phone-dark (391ms), desk-light (445ms), and desk-dark (406ms).
+- Root cause on `daaa413`: `mine.done` is kept and remote `done` keys are only added. A reset's empty map deletes nothing. XP happened to land at 0 because one answer does not call `addXP` and the reset's XP delta is 0.
+- Status: FAIL on `daaa413`, PASS on `7840da4`. New defect. Follow-up: a `done` deletion that does not bump `gen` is still a union. Import bumps `gen` in code and was not given its own browser run.
+
+### R3-25 — a later quest day loses to a stale day
+
+- Component: `mergeProg` quest block. Requirement: a newer quest day in storage replaces an older in-memory day.
+- Hypothesis: unequal days skip the merge, so the lesson tab writes its old day over the other tab's later day.
+- Method, first try, phone-light on `daaa413`: the other tab set `qd.p.lessons` to 1 and bought a 50/50, then this tab set `qd.day` to `2020-01-01` and answered correctly. That run passed in 688ms. A correct answer calls `qBump`, which calls `quests()` and replaces a non-today `qd` before `save()`. That run did not reach the unequal-day branch.
+- Method, the run that hits the branch: after both revs match and this tab is on Check, the other page writes `qd.day` `2099-06-01`, `qd.p.lessons` 1, and `rev + 1`. This tab sets its in-memory day to `2020-01-01` and `lessons` to 9, then answers wrong. A wrong answer calls `save()` and does not call `quests()`.
+- Expected: stored day `2099-06-01`, lessons 1.
+- Actual, pre-fix `daaa413`, phone-light, 546ms: `expect(stored.day).toBe(planted)` expected `"2099-06-01"` and received `"2020-01-01"` at `audit.spec.js:306`. The lessons assertion was not reached.
+- Actual, fixed code: phone-light passed in 625ms before the suite. The suite log shows 433ms, 323ms, 319ms, and 360ms on the four projects.
+- Status: FAIL on `daaa413` for the wrong-answer save, PASS on `7840da4`. New defect. The first formulation is not evidence of the fix. Follow-up: none for a later ISO day. An older stored day still leaves the lesson tab's day in place.
+
+### R3-26 — mutation, generation check forced false
+
+- Component: the R3-24 assertion.
+- Method: copy `app.js` to `/tmp/br-mut/ByteRyte/app.js` only. Change `const bumped=(remote.gen||0)>(base.gen||0);` to `const bumped=false&&(remote.gen||0)>(base.gen||0);`. Serve `http://127.0.0.1:8907/ByteRyte/` with `/tmp/pw-mut.config.js`, phone-light. Workspace `app.js` was not edited. `rg` on the workspace found no `false&&`.
+- Expected: `done` received `true`.
+- Actual: phone-light failed in 438ms. `Expected: false`, `Received: true`, at `audit.spec.js:261`.
+- Status: FAIL, as required. The workspace line stayed `const bumped=(remote.gen||0)>(base.gen||0);`. New. Follow-up: none.
+
+### R3-27 — JDK 21 check of six keyed explanations
+
+- Component: lesson `why` text for inheritance constructors, `List.getFirst`/`getLast`, `Arrays.binarySearch`, and `HashMap` get/put.
+- Hypothesis: one of those keyed answers disagrees with JDK 21.
+- Method: `/tmp/br-why/Why.java`, compiled and run with OpenJDK `21.0.12.1` (`java -version`). The program prints `new B()`, `List.of("a","b","c").getFirst()` and `getLast()`, `Arrays.binarySearch` of `{1,3,5,7}` for 4 and for 5, `HashMap.get("x")` with `getOrDefault("x", 0)`, and `put("a", 1)` then `put("a", 2)`.
+- Expected: `AB`, `a c`, `-3`, `2`, `null 0`, `2 1`, matching the keyed options in `data.js` (parent constructor then subclass, first and last, insertion point −3, index 2, null then 0, replaced value with size 1).
+- Actual: the program printed those six lines in that order, exit 0.
+- Status: PASS. Not a defect. This is six snippets, not a walk of the curriculum, and the choices were not clicked in the browser. New. Follow-up: none from these six.
+
+### R3-28 — final `npm test`
+
+- Component: the tree with the generation floor, the later-day quest replacement, and cache `byteryte-v24`.
+- Method: `npm test` from `tests/`. Log `/tmp/npm-test-r3c.txt`.
+- Expected: exit 0, bytes at or under 400000.
+- Actual: `validate-data PASS lessons=62 exercises=687 interview=140 fixes=62 outs=218`. `validate-static PASS`. `validate-docs PASS urls=53`. `validate-java PASS snippets=176 jdk=21`. `validate-swift PASS snippets=42 Swift version 6.0.3 (swift-6.0.3-RELEASE)`. `validate-ambiguity PASS arrange-duplicates=1`. `validate-perf PASS bytes=353931 limit=400000`. `352 passed (2.7m)`. `EXIT:0`. Soak heaps 2949760 (phone-light), 2949828 (phone-dark), 2944848 (desk-light), 2945016 (desk-dark). Nodes 244 then 243, 50 lessons, on each. Slow 4G 2723, 2701, 2756, 2770 ms.
+- Arithmetic: 14 audit specs × 4 projects = 56. 352 − 56 = 296, the same pre-audit Playwright count as R3-23.
+- Status: PASS. Regression. Follow-up: none from this log.
+
 ## 7. Final report
 
-This section covers both parts of round 3. Counts are the ledger rows above.
+This section covers parts 1, 2, and 3 of round 3. Counts are the ledger rows above. The app is not claimed to be free of defects.
 
-1. Duration. Part 1: `2026-10-25T23:05:26Z` to `2026-10-25T23:27:41Z` (22 minutes 15 seconds). Part 2: `2026-10-25T23:29:15Z` to `2026-10-25T23:44:02Z` (14 minutes 47 seconds). Active total, excluding the gap between the parts, is 37 minutes 2 seconds.
+1. Duration. Part 1: `2026-10-25T23:05:26Z` to `2026-10-25T23:27:41Z` (22 minutes 15 seconds). Part 2: `2026-10-25T23:29:15Z` to `2026-10-25T23:44:02Z` (14 minutes 47 seconds). Part 3: `2026-10-25T23:46:17Z` to `2026-10-26T00:00:29Z` (14 minutes 12 seconds). Active total, excluding the gaps between the parts, is 51 minutes 14 seconds.
 
-2. Scope. Part 1: profile save, sanitize, hearts, practice misses, level and day math, corrupt JSON, and `96d50e0` / `02f3957`. Part 2, from `8dbc279`: lesson progress while one tab is mid-lesson, the service-worker fetch catch, two in-lesson gem spends, review misses, the streak for `last` `2026-02-31`, the 30-day `doubleUntil` line, and badges plus same-day quest counters on that same save.
+2. Scope. Part 1, from `96d50e0`: profile save, sanitize, hearts, practice misses, level and day math, corrupt JSON, and `02f3957`. Part 2, from `8dbc279`: lesson progress while one tab is mid-lesson, the service-worker fetch catch, two in-lesson gem spends, review misses, the streak for `last` `2026-02-31`, the 30-day `doubleUntil` line, and badges plus same-day quest counters. Part 3, from `daaa413`: a second tab resetting the profile during a lesson, a quest day that is not today, a mutation of the generation check, and six keyed explanations run on JDK 21.
 
-3. Distinct tests. Part 1 audit rows: R3-01 through R3-10 (10). Part 2 audit rows: R3-12 through R3-20 and R3-22 (10). Together that is 20 audit rows. R3-07 is one of those rows and has two inputs. Extra executions are listed on the rows (two timezones, pre-fix reruns, three part-2 mutations). Regression, counted separately: R3-11 (320 Playwright, 7 validators), R3-21 (344 Playwright, intermediate tree), R3-23 (344 Playwright, final tree). Each regression run includes its own 7 validators, all PASS.
+3. Distinct tests. Audit rows: part 1 R3-01 through R3-10 (10), part 2 R3-12 through R3-20 and R3-22 (10), part 3 R3-24 through R3-27 (4). Together that is 24 audit rows. R3-07 is one of those rows and has two inputs. Extra executions are listed on the rows (two timezones, pre-fix reruns, four mutations, one JDK program). Regression, counted separately: R3-11 (320 Playwright, 7 validators), R3-21 (344 Playwright, intermediate tree), R3-23 (344 Playwright, part-2 tree), R3-28 (352 Playwright, part-3 tree). Each regression run includes its own 7 validators, all PASS.
 
-4. Coverage. Executed: the part-1 list, plus R3-12 through R3-23. Not covered: a clicked stack of 2881 Double XP purchases, two shop buttons pressed in the same event-loop turn on the home screen, a second tab that resets the profile, deletion of a `done` key, a physical phone, VoiceOver, an installed icon, pinch zoom, live GitHub Pages, Lighthouse, a multi-hour soak, and answering the curriculum as a learner. Print snippets ran. Multiple-choice and fill answers inside the validators did not.
+4. Coverage. Executed: the rows above. Not covered: a clicked stack of 2881 Double XP purchases, two shop buttons pressed in the same turn, deletion of one `done` key without a generation bump, the import button while a lesson is open, a physical phone, VoiceOver, an installed icon, pinch zoom, live GitHub Pages, Lighthouse, a multi-hour soak, and a learner walk of the whole curriculum. R3-27 ran six snippets. Multiple-choice and fill answers inside the validators did not.
 
 5. Confirmed defects.
    - R3-04. On `96d50e0`, a lesson tab stored `freezes` 0 over the other tab's freeze (`Expected: 1`, `Received: 0`).
@@ -324,59 +374,27 @@ This section covers both parts of round 3. Counts are the ledger rows above.
    - R3-12. On `8dbc279`, the other tab finished `java.run` with XP 31, `done` true, 1 lesson, streak 1, `last` `2026-10-25`. This tab's next answer stored `done` false.
    - R3-13. An offline fetch of a missing script returned status 200, `text/html`, body starting `<!DOCTYPE html>`.
    - R3-22. After XP and `done` were merged, the same save stored badges `[]`. The finishing tab had `first` and `perfect`.
+   - R3-24. On `daaa413`, after the other tab reset Ada, this tab's next answer stored `java.run` done `true` (`Expected: false`).
+   - R3-25. On `daaa413`, a wrong-answer save stored quest day `2020-01-01` over the other tab's `2099-06-01`.
 
-6. Suspected, still open. A reset or a deleted `done` key in the other tab can be undone, because completions are a union and XP is a delta from the pre-lesson baseline. Not run. Same-day quest gems are already in the gem delta; a different-day quest object is left on the lesson tab. Not run. R3-S3's unclicked 2881-purchase stack is low and the boundary itself passed.
+6. Suspected, still open. Removing one `done` key or one badge without incrementing `gen` is still a union, so the lesson tab can put that key back. Not run. Import increments `gen` after hydrate and was not clicked in a browser. A correct answer still calls `quests()` before `save()`, so that path replaces a non-today day with today before the merge; R3-25's first formulation passed for that reason and is not a remaining defect.
 
-7. Blocked. No physical device, VoiceOver, installed icon, pinch zoom, live Pages, Lighthouse, or multi-hour soak. R3-03's node check does not fail on its own. R3-19 did not print the HTML body again. The quest counter's pre-fix number was not observed, because R3-22 failed on badges first. Both docs runs passed 53 URLs. Neither recorded a 503.
+7. Blocked. No physical device, VoiceOver, installed icon, pinch zoom, live Pages, Lighthouse, or multi-hour soak. R3-03's node check does not fail on its own. R3-19 did not print the HTML body again. The same-day quest counter's pre-fix number was not observed, because R3-22 failed on badges first. R3-25's lessons value was not observed on the failing run, because the day assertion failed first. Docs runs passed 53 URLs. None recorded a 503.
 
 8. Fixes, and the check that is independent of the first passing run.
    - Part 1, in the squash of PR #16: `mergeEcon`, practice misses, the 30-day cap, and `dayOk`. Each failed on the older tree and passed in R3-11. R3-09 failed when `mergeEcon` was skipped.
-   - `mergeProg` unions `done`, badges, and review keys the lesson tab lacks; it adds XP, `xpLog`, misses, lesson and perfect counts, and same-day quest counters; it copies streak and `last` when this tab has not changed them. R3-12 and R3-22 pass in R3-23. R3-18 fails when `mergeProg` is skipped.
-   - The service worker throws on a failed non-navigation fetch and still serves the cached page for a navigation. R3-13 passes in R3-23. R3-19 fails when the HTML fallback is restored. Cache name is `byteryte-v23` because `app.js` and `sw.js` changed. `validate-static` passed.
+   - `mergeProg` unions `done`, badges, and review when the generation did not rise; it adds XP, `xpLog`, misses, lesson and perfect counts, and same-day quest counters; it copies streak and `last` when this tab has not changed them. R3-12 and R3-22 pass in R3-28. R3-18 fails when `mergeProg` is skipped.
+   - The service worker throws on a failed non-navigation fetch and still serves the cached page for a navigation. R3-13 passes in R3-28. R3-19 fails when the HTML fallback is restored.
+   - Part 3, in `7840da4`: reset sets `gen` one higher. When the stored generation is above the lesson tab's baseline, `done`, badges, and review start from that stored profile, and only keys gained after the baseline are added. A later quest day replaces the in-memory quest object. R3-24 and R3-25 pass in R3-28. R3-26 fails when the generation comparison is forced false. Cache name is `byteryte-v24` because `app.js` and `sw.js` changed. `validate-static` passed.
 
-9. Regression. R3-11: 320 passed, 348759 bytes. R3-21: 344 passed, 351376 bytes, before the badge assertion. R3-23: 344 passed, 352309 bytes, exit 0, cache `byteryte-v23`. The final soak and slow-4G numbers are in R3-23. Slow 4G is Chromium emulation. The soak is four heap snapshots after 50 lessons.
+9. Regression. R3-11: 320 passed, 348759 bytes. R3-21: 344 passed, 351376 bytes, before the badge assertion. R3-23: 344 passed, 352309 bytes, exit 0, cache `byteryte-v23`. R3-28: 352 passed, 353931 bytes, exit 0, cache `byteryte-v24`. The part-3 soak and slow-4G numbers are in R3-28. Slow 4G is Chromium emulation. The soak is four heap snapshots after 50 lessons. 352 − 56 = 296, the same pre-audit Playwright count as R3-23.
 
 10. Remaining risks, highest first.
-    - Medium: a reset, or any removal of `done` or badges, in the other tab can be written back by the in-lesson tab. Not run.
-    - Low: quest state from a different day is not merged. Not run.
+    - Medium: a `done` or badge deletion that does not bump `gen` can still be written back by the in-lesson tab. Reset and the import handler bump `gen`. A single-key delete does not.
+    - Low: the import handler's generation bump was not executed in a browser.
     - Low: the 30-day cap was checked as a timestamp, not as 2881 clicks.
     - Low: the environment limits in item 7.
 
-11. Single most important next action. Reproduce a second tab that resets the profile, or clears `done`, while the first tab is inside a lesson. The current union will keep the in-lesson tab's old completion. Decide whether a reset should win.
-
-The app is not claimed to be free of defects.
-
-2. Scope inspected. `app.js` storage, sanitize, save conflict, hearts/`daily`, `judge` misses, and level/day helpers. `sw.js` cache name and fetch handler (read). Playwright audit spec, `audit-logic.js`, and the full `npm test` log. Pre-fix `app.js` from `96d50e0` and `outOfHearts` behavior recorded on `02f3957`.
-
-3. Distinct tests. Ten audit rows, R3-01 through R3-10. R3-07 is one row with two inputs (`{` and `[]`). Extra executions of those rows: R3-01, R3-02, and R3-03 each ran in two timezones; R3-04, R3-05, R3-06, and R3-08 ran on pre-fix `app.js` during close-out and again on the fixed tree inside the suite; R3-09 is one mutation run. Regression, counted separately: one `npm test` (R3-11), 7 validators PASS, 320 Playwright passed. Of those 320, 24 are the 6 audit specs × 4 projects and 296 are the previous suite.
-
-4. Coverage achieved. The rows in "Executed and recorded" above. Not covered: R3-S1, R3-S2, a second tab spending gems in the same instant (the formula `remote+(mine-base)` was not given its own test), review-mode miss increments, physical device, VoiceOver, installed PWA, pinch zoom, live GitHub Pages, Lighthouse, multi-hour soak, and executing multiple-choice or fill answers as a learner.
-
-5. Confirmed defects, with repro.
-   - R3-04. On `96d50e0`, a lesson tab's next answer wrote `freezes` 0 over the other tab's freeze purchase (`Expected: 1`, `Received: 0`). Cause: `P.list[active]=mine` after hydrate.
-   - R3-05. A wrong practice answer moved `java.run` misses from 1 to 2 (`Received: 2`). Cause: the miss increment did not exclude practice.
-   - R3-06. `doubleUntil` 400 days ahead was kept (`Received: 1827530724236`). Cause: no upper bound.
-   - R3-08. `last` stayed `"2026-02-31"` (`Expected: null`). Cause: `dayOk` accepted any regex date. R3-03 shows that string parses as 3 March 2026 and `dayDiff` to 1 March 2026 is −2.
-
-6. Suspected. R3-S1 lesson-progress clobber (high). R3-S2 service-worker HTML fallback for a failed script (medium). R3-S3 clearing a `doubleUntil` that is more than 30 days ahead (low).
-
-7. Blocked or inconclusive. Device, VoiceOver, installed icon, pinch zoom, live Pages, Lighthouse, and a multi-hour soak were not run. R3-03's node check does not fail on its own. No streak number was read off the screen for `last === "2026-02-31"`. Docs URLs in this suite returned PASS for 53 URLs; this run did not record a 503.
-
-8. Fixes in `f803009`, and how they were checked.
-   - `mergeEcon` keeps a delta of the economy fields and still keeps a profile the other tab added. R3-04 passed on four projects. R3-09 failed when that call was skipped.
-   - Practice no longer increments misses. R3-05 passed on four projects after failing on `96d50e0`.
-   - `doubleUntil` more than 30 days ahead becomes 0. R3-06 passed on four projects after failing on `96d50e0`.
-   - `dayOk` requires the round-trip `iso(d)===s`. R3-08 passed on four projects after `last` stayed `"2026-02-31"` on `96d50e0`.
-   - Service worker cache renamed to `byteryte-v21` because `app.js` shipped. `validate-static` PASS. This rename is the ship step, not a product defect.
-
-9. Regression. R3-11: 320 passed, exit 0, 348759 bytes. The not-in-lesson two-tab purchase, the new-profile-while-in-lesson case, stacked Double XP, midnight hearts, full disk, soak, and slow 4G all passed inside that run.
-
-10. Remaining risks, highest first.
-    - High: R3-S1, other tab's XP and lesson completion can still be overwritten. Not reproduced in a run.
-    - Medium: R3-S2, a failed non-navigation fetch can be answered with `index.html`. Not run.
-    - Low: R3-S3, the 30-day cap. Not hit by a long stack.
-    - Low: the environment limits in item 7. The suite's slow 4G and soak do not stand in for a phone or a long run.
-
-11. Single most important next action. Reproduce a second tab finishing a lesson (XP and `done`) while the first tab is inside a lesson. Then either delta-merge those fields or refuse the second writer. Do not treat R3-04's economy merge as covering that case.
+11. Single most important next action. Reproduce a second tab that deletes one `done` key, without incrementing `gen`, while the first tab is inside a lesson. The union will put that key back. Decide whether every deletion must bump `gen`, or only reset and import.
 
 The app is not claimed to be free of defects.
