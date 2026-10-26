@@ -9,7 +9,8 @@ const { TRACKS, IV, migrateProgress } = new Function(src + '\nreturn {TRACKS, mi
 const issues = [];
 const ids = new Set();
 let lessons = 0, exercises = 0, fixes = 0, outs = 0;
-const types = new Set(['mc', 'out', 'fill', 'ar', 'bug', 'fix']);
+const { gradeTyped } = require(path.join(root, 'grade.js'));
+const types = new Set(['mc', 'out', 'fill', 'ar', 'bug', 'fix', 'type']);
 
 function bad(msg) { issues.push(msg); }
 
@@ -27,8 +28,14 @@ for (const t of TRACKS) {
       if (!l.ex.some(e => e.t === 'fix')) bad('no fix ' + l.id);
       l.ex.forEach((e, i) => checkEx(l.id + '~' + i, e));
     }
+    if (u.quiz) checkQuiz(t.id, u);
   }
 }
+const swiftEss = TRACKS.find(t => t.id === 'swift').units.find(u => u.uid === 'essentials');
+if (!swiftEss.quiz || swiftEss.quiz.id !== 'swift.essentials.quiz') bad('swift essentials quiz missing');
+let quizCount = 0;
+for (const t of TRACKS) for (const u of t.units) if (u.quiz) quizCount++;
+if (quizCount !== 1) bad('quiz count ' + quizCount + ' (this pilot authors Swift Essentials only)');
 const seenIv = new Map();
 IV.forEach((e, i) => {
   if (!e.tag || !e.track) bad('iv meta ' + i);
@@ -38,10 +45,21 @@ IV.forEach((e, i) => {
   else seenIv.set(key, i);
 });
 
+function checkQuiz(track, u) {
+  const q = u.quiz;
+  if (!q.id || !/^[\w.]+$/.test(q.id)) bad('quiz id ' + track + ' ' + u.uid);
+  if (q.name !== 'Unit check') bad('quiz name ' + q.id);
+  if (!Array.isArray(q.ex) || q.ex.length < 5 || q.ex.length > 8) bad('quiz length ' + q.id);
+  if (!Number.isInteger(q.pass) || q.pass < 1 || q.pass > q.ex.length) bad('quiz pass ' + q.id);
+  if (!q.ex.some(e => e.t === 'type')) bad('quiz has no typed question ' + q.id);
+  q.ex.forEach((e, i) => checkEx(q.id + '~' + i, e));
+}
+
 function checkEx(id, e) {
   exercises++;
   if (!types.has(e.t)) bad('type ' + id + ' ' + e.t);
   if (!e.why || String(e.why).trim().length < 12) bad('why ' + id);
+  if (e.t === 'type') return checkTyped(id, e);
   if (e.t === 'ar') {
     if (!Array.isArray(e.lines) || e.lines.length < 2) bad('ar lines ' + id);
     return;
@@ -63,6 +81,37 @@ function checkEx(id, e) {
   if ((e.t === 'out' || e.t === 'fix' || e.t === 'fill') && typeof e.code !== 'string') bad('code ' + id);
   if (e.t === 'fill' && typeof e.code === 'string' && !e.code.includes('___')) bad('fill blank ' + id);
   if ((e.t === 'mc' || e.t === 'out') && !e.q && e.t !== 'out') bad('question ' + id);
+}
+
+function checkTyped(id, e) {
+  if (typeof e.q !== 'string' || e.q.length < 8) bad('typed prompt ' + id);
+  if (typeof e.canon !== 'string' || !e.canon.trim()) bad('canon ' + id);
+  if (!Array.isArray(e.alts)) bad('alts ' + id);
+  if (!['strict', 'space', 'free'].includes(e.grade)) bad('grade ' + id + ' ' + e.grade);
+  if (!['optional', 'required'].includes(e.semi)) bad('semi ' + id);
+  if (e.grade !== 'free' && e.semi !== 'required') bad('non-free semi ' + id);
+  if (e.out != null && typeof e.out !== 'string') bad('out ' + id);
+  if (!gradeTyped(e, e.canon)) bad('canon rejected ' + id);
+  e.alts.forEach(a => { if (!gradeTyped(e, a)) bad('alt rejected ' + id + ' ' + a); });
+  if (gradeTyped(e, '') || gradeTyped(e, '   ')) bad('empty accepted ' + id);
+  if (gradeTyped(e, e.canon + 'X')) bad('suffix accepted ' + id);
+  const identGlued = e.canon.replace(/([A-Za-z_])\s+([A-Za-z_])/g, '$1$2');
+  if (identGlued !== e.canon && gradeTyped(e, identGlued)) bad('ident glued accepted ' + id + ' ' + identGlued);
+  if (e.grade === 'strict') {
+    const messy = e.canon.replace(/ /g, '  ');
+    if (messy !== e.canon && gradeTyped(e, messy)) bad('strict accepted extra space ' + id);
+    if (gradeTyped(e, e.canon + ';')) bad('strict accepted semicolon ' + id);
+  } else if (!gradeTyped(e, e.canon.replace(/ /g, '  '))) bad('spacing rejected ' + id);
+  if (e.grade === 'free' && e.semi === 'optional' && !gradeTyped(e, e.canon + ';')) bad('free rejected semicolon ' + id);
+  if ((e.grade === 'space' || e.grade === 'strict') && gradeTyped(e, e.canon + ';')) bad('semicolon accepted ' + id);
+  if (e.grade === 'space' && !gradeTyped(e, e.canon.replace(/([()])/g, ' $1 '))) bad('space around punctuation rejected ' + id);
+  const raw = e.canon.replace(/"([^"\\\n#]*)"/g, '#"$1"#');
+  if (raw !== e.canon && e.quotes && !gradeTyped(e, raw)) bad('raw quote rejected ' + id);
+  if (raw !== e.canon && !e.quotes && gradeTyped(e, raw)) bad('raw quote accepted ' + id);
+  const single = e.canon.replace(/"([^"\\\n]*)"/g, "'$1'");
+  if (single !== e.canon && gradeTyped(e, single)) bad('single quote accepted ' + id);
+  const curly = e.canon.replace(/"([^"\\\n]*)"/g, '\u201c$1\u201d');
+  if (curly !== e.canon && gradeTyped(e, curly)) bad('curly quote accepted ' + id);
 }
 
 function assert(cond, msg) { if (!cond) bad('migration ' + msg); }
@@ -211,7 +260,10 @@ function note(id, e) {
     else seenCode.set(e.code, id);
   }
 }
-for (const t of TRACKS) for (const u of t.units) for (const l of u.lessons) l.ex.forEach((e, i) => note(l.id + '~' + i, e));
+for (const t of TRACKS) for (const u of t.units) {
+  for (const l of u.lessons) l.ex.forEach((e, i) => note(l.id + '~' + i, e));
+  if (u.quiz) u.quiz.ex.forEach((e, i) => note(u.quiz.id + '~' + i, e));
+}
 IV.forEach((e, i) => note('iv-' + i, e));
 
 function keyed(prefix, choice) {

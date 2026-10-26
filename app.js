@@ -273,16 +273,17 @@ Object.assign(DOCS,{
 'Async, Await, and the Main Actor':SW+'concurrency/'
 });
 const plural=(n,one,many)=>`${n} ${n===1?one:(many||one+'s')}`;
-const docUrl=k=>{if(!k)return null;if(k.startsWith('iv-'))return IVDOC[IV[+k.slice(3)]?.tag]||null;const f=findLesson(k);return f?DOCS[f.l.name]||null:null};
+const docUrl=k=>{if(!k)return null;if(k.startsWith('iv-'))return IVDOC[IV[+k.slice(3)]?.tag]||null;const f=findLesson(k);if(f)return DOCS[f.l.name]||null;const id=String(k).split('~')[0];for(const t of TRACKS)for(const u of t.units)if(u.quiz&&u.quiz.id===id&&u.lessons[0])return DOCS[u.lessons[0].name]||null;return null};
 const docLink=u=>{try{if(!u)return '';const host=new URL(u).hostname.replace(/^www\./,'');return `<a class="learn" href="${u}" target="_blank" rel="noopener">📘 Learn more · ${host} <span aria-hidden="true">↗</span><span class="sr">(opens in a new tab)</span></a>`}catch(e){return ''}};
 const sheetHTML=items=>items&&items.length?`<ul class="cheats">${items.map(s=>`<li>${esc(s)}</li>`).join('')}</ul>`:'';
 const dl=()=>{const d=today();S.dlog=S.dlog||{};return S.dlog[d]=S.dlog[d]||{l:0,a:0,c:0}};
 const savedKeys=()=>Object.keys(S.saved||{}).filter(k=>exByKey(k)).sort((a,b)=>S.saved[b]-S.saved[a]);
-const exByKey=k=>{if(k.startsWith('iv-'))return IV[+k.slice(3)];const f=findLesson(k);if(!f)return null;const i=String(k).split('~')[1];return i===undefined?null:f.l.ex[+i]};
+const quizEx=k=>{const p=String(k).split('~');if(p.length<2)return null;for(const t of TRACKS)for(const u of t.units)if(u.quiz&&u.quiz.id===p[0])return u.quiz.ex[+p[1]]||null;return null};
+const exByKey=k=>{if(k.startsWith('iv-'))return IV[+k.slice(3)];const qz=quizEx(k);if(qz)return qz;const f=findLesson(k);if(!f)return null;const i=String(k).split('~')[1];return i===undefined?null:f.l.ex[+i]};
 const lessonOf=k=>findLesson(k)?.l||null;
 const trackOpen=t=>{if(!t||!t.parent)return true;if(S.unlockAll)return true;if(S.gates&&S.gates[t.id])return true;return (t.id==='javafx'?FX_GATE:DRILL).every(id=>S.done&&S.done[id])};
 const due=()=>Object.entries(S.review).filter(([k,v])=>v.due<=Date.now()&&exByKey(k)).map(([k])=>k);
-const NAMES={mc:'Concept check',out:'Predict the output',fill:'Complete the code',ar:'Arrange the code',bug:'Spot the bug',fix:'Fix the bug'};
+const NAMES={mc:'Concept check',out:'Predict the output',fill:'Complete the code',ar:'Arrange the code',bug:'Spot the bug',fix:'Fix the bug',type:'Write the code'};
 const dblOn=()=>S.doubleUntil>Date.now();
 // A session keeps the boost that was running when it started, including after the 15 minutes end.
 const boosted=()=>R?S.doubleUntil>R.t0:dblOn();
@@ -378,6 +379,7 @@ function armHistory(){
   }catch(e){}
 }
 // ---------- learn ----------
+function quizBlocks(t,ui){if(!t||S.unlockAll)return false;for(let i=0;i<ui;i++){const q=t.units[i].quiz;if(q&&!S.done[q.id])return true}return false}
 function home(){
   cur='learn';daily();const t=T(S.track),ls=lessons(t),locked=t.parent&&!trackOpen(t),firstOpen=ls.findIndex(x=>!S.done[x.key]),gp=Math.min(100,(S.xpLog[today()]||0)/S.goal*100);
   let h=`<section class="goalcard"><div class="row"><b>Daily goal</b><span>${S.xpLog[today()]||0} / ${S.goal} XP</span></div><div class="bar"><i style="width:${gp}%"></i></div>${S.last===yday()&&!(S.xpLog[today()])?`<div class="pill warn">🔥 Keep your ${S.streak}-day streak alive — do one lesson today!</div>`:''}${S.freezes?`<div class="pill">🧊 ${S.freezes} streak freeze${S.freezes>1?'s':''} ready</div>`:''}${dblOn()?`<div class="pill">⚡ Double XP active · ${Math.ceil((S.doubleUntil-Date.now())/60000)} min left</div>`:''}</section>
@@ -387,17 +389,19 @@ function home(){
     h+=`<button role="tab" aria-selected="${x.id===S.track}" class="tab ${x.id===S.track?'on':''}" data-t="${x.id}" style="--c:${x.color}">${x.icon} ${x.name}<small>${x.primary?'Main path':x.parent?'↳ Java branch':'Secondary'} · ${d}/${n}</small></button>`});
   h+=`</div>`;
   if(locked)h+=`<div class="branchbox">🔒 ${t.id==='javafx'?'JavaFX is a separate OpenJFX library. Finish <b>Java through Exceptions</b> (classes, references, inheritance, interfaces) so the scene graph has something to stand on.':'HTML &amp; CSS unlocks after <b>types, strings, control flow, methods, and arrays</b>. You do not need classes for it.'}</div>`;
-  t.units.forEach((u,ui)=>{const ud=u.lessons.filter(l=>S.done[l.id]).length;
+  t.units.forEach((u,ui)=>{const ud=u.lessons.filter(l=>S.done[l.id]).length,blocked=quizBlocks(t,ui);
     h+=`<div class="unit" style="--c:${t.color}"><div>${esc(u.name)}<small>${ud}/${u.lessons.length} lessons complete</small></div><div class="uright"><button class="guide" data-u="${ui}" aria-label="📖 Guide, ${esc(u.name)}">📖 Guide</button><div class="ring" style="--p:${ud/u.lessons.length*100}" aria-hidden="true"></div></div></div><div class="path" style="--c:${t.color}">`;
-    u.lessons.forEach((l,li)=>{const i=ls.findIndex(x=>x.ui===ui&&x.li===li),k=ls[i].key,open=!locked&&(S.unlockAll||i<=firstOpen||firstOpen<0||S.done[k]),isCur=open&&!S.done[k]&&i===firstOpen;
+    u.lessons.forEach((l,li)=>{const i=ls.findIndex(x=>x.ui===ui&&x.li===li),k=ls[i].key,open=!locked&&(S.done[k]||(!blocked&&(S.unlockAll||i<=firstOpen||firstOpen<0))),isCur=open&&!S.done[k]&&i===firstOpen&&!blocked;
       const off=[0,48,68,48,0,-48,-68,-48][i%8];
       h+=`<div class="nodewrap ${isCur?'hascur':''}" style="--x:${off}px">${isCur?'<div class="startbub">START</div>':''}<button class="node ${open?'':'lock'} ${S.done[k]?'done':''} ${isCur?'cur':''}" style="--c:${t.color}" data-k="${esc(k)}" ${open?'':'disabled'} aria-label="${esc(l.name)}${S.done[k]?' (complete)':open?'':' (locked)'}">${S.done[k]?'★':open?t.icon:'🔒'}</button><div class="nlab">${esc(l.name)}</div></div>`});
+    if(u.quiz){const q=u.quiz,lessonsDone=u.lessons.every(l=>S.done[l.id]),qOpen=!locked&&(S.unlockAll||(lessonsDone&&!blocked)),qDone=!!S.done[q.id],qCur=qOpen&&!qDone&&lessonsDone&&!blocked,off=[0,48,68,48,0,-48,-68,-48][u.lessons.length%8];
+      h+=`<div class="nodewrap ${qCur?'hascur':''}" style="--x:${off}px">${qCur?'<div class="startbub">START</div>':''}<button class="node ${qOpen?'':'lock'} ${qDone?'done':''} ${qCur?'cur':''}" style="--c:${t.color}" data-quiz="1" data-ui="${ui}" ${qOpen?'':'disabled'} aria-label="Unit check${qDone?' (complete)':qOpen?'':' (locked)'}">${qDone?'★':qOpen?'✓':'🔒'}</button><div class="nlab">Unit check</div></div>`}
     h+=`</div>`});
   if(t.id==='java')h+=`<div class="branchbox">🌿 <b>HTML &amp; CSS</b> ${trackOpen(T('css'))?'is open.':'opens after types through arrays.'} <b>JavaFX</b> (OpenJFX 21+, not part of the JDK) ${trackOpen(T('javafx'))?'is open.':'opens after object-oriented Java.'} Switch tabs above once a branch is open.</div>`;
-  h+=`<p class="note">Java print answers were run on JDK 21. Swift print answers were run on Swift 6.0.3. Concepts checked against Oracle, OpenJFX, MDN, and Swift.org. Gems stay in the app.</p>`;
+  h+=`<p class="note">Java print answers were run on JDK 21. Swift print answers and Swift Essentials typed answers were run on Swift 6.0.3. Concepts checked against Oracle, OpenJFX, MDN, and Swift.org. Gems stay in the app.</p>`;
   shell(h);
   $$('.tab').forEach(b=>b.onclick=()=>{if(!once(b))return;S.track=b.dataset.t;save();home()});
-  $$('.node:not(.lock)').forEach(b=>b.onclick=()=>{if(!once(b))return;const L=lessonOf(b.dataset.k);start(L.ex.map((e,i)=>({e,k:`${b.dataset.k}~${i}`})),{key:b.dataset.k,name:L.name,tip:L.tip,sheet:L.sheet,mode:'lesson'})});
+  $$('.node:not(.lock)').forEach(b=>b.onclick=()=>{if(!once(b))return;if(b.dataset.quiz){const u=t.units[+b.dataset.ui],q=u.quiz;start(q.ex.map((e,i)=>({e,k:`${q.id}~${i}`})),{key:q.id,name:q.name,mode:'quiz',pass:q.pass});return}const L=lessonOf(b.dataset.k);start(L.ex.map((e,i)=>({e,k:`${b.dataset.k}~${i}`})),{key:b.dataset.k,name:L.name,tip:L.tip,sheet:L.sheet,mode:'lesson'})});
   $$('.guide').forEach(b=>b.onclick=()=>{if(!once(b))return;guide(t,+b.dataset.u)});
   $('.node.cur')?.scrollIntoView({block:'center'});
 }
@@ -414,12 +418,12 @@ function practice(){cur='practice';daily();const dn=due().length;
   <button class="pcard" id="svd" ${savedKeys().length?'':'disabled'}><span class="pic">★</span><span><b>Saved questions</b><small>${savedKeys().length?`${plural(savedKeys().length,'saved question')} · no hearts needed`:'None yet. After you answer, tap Save question to keep it here.'}</small></span></button>
   <h2 class="h2">Weak spots</h2>`;
   h+=weak.length?weak.map(([k,n])=>{const f=findLesson(k);return `<button class="pcard weak" data-k="${esc(k)}"><span class="pic">${f.t.icon}</span><span><b>${esc(f.l.name)}</b><small>${plural(n,'miss','misses')} · ${f.t.name}</small></span></button>`}).join(''):'<div class="empty"><span aria-hidden="true">🌱</span><p>No weak spots yet. Miss a question and that lesson will show up here.</p></div>';
-  if(savedKeys().length)h+=`<h2 class="h2">Saved · ${savedKeys().length}</h2><ul class="svlist">${savedKeys().map(k=>{const e=exByKey(k),src=k.startsWith('iv-')?'Interview · '+e.tag:lessonOf(k.split('~')[0])?.name;return `<li><span><b>${esc((e.q||(e.t==='out'?'What does this print?':'Question')).slice(0,90))}</b><small>${esc(src||'')}</small></span><button class="link unsv" data-k="${esc(k)}" aria-label="Remove from saved">Remove</button></li>`}).join('')}</ul>`;
+  if(savedKeys().length)h+=`<h2 class="h2">Saved · ${savedKeys().length}</h2><ul class="svlist">${savedKeys().map(k=>{const e=exByKey(k),src=k.startsWith('iv-')?'Interview · '+e.tag:(lessonOf(k.split('~')[0])?.name||(quizEx(k)?'Unit check':''));return `<li><span><b>${esc((e.q||(e.t==='out'?'What does this print?':'Question')).slice(0,90))}</b><small>${esc(src||'')}</small></span><button class="link unsv" data-k="${esc(k)}" aria-label="Remove from saved">Remove</button></li>`}).join('')}</ul>`;
   shell(h);
   $('#svd').onclick=()=>{if(!once($('#svd')))return;const ks=savedKeys();if(ks.length)start(shuffle(ks).map(k=>({e:exByKey(k),k})),{name:'Saved questions',mode:'saved'})};
   $$('.unsv').forEach(b=>b.onclick=()=>{if(!once(b))return;delete S.saved[b.dataset.k];save();practice()});
   $('#rev').onclick=()=>{if(!once($('#rev')))return;const d=shuffle(due()).slice(0,10);if(d.length)start(d.map(k=>({e:exByKey(k),k})),{name:'Review',mode:'review'})};
-  $('#chal').onclick=()=>{if(!once($('#chal')))return;const pool=[];TRACKS.forEach(t=>lessons(t).forEach(x=>{if(S.done[x.key]||S.unlockAll||t.id==='java'&&x.u.uid==='foundations')x.l.ex.forEach((e,i)=>{if(e.t!=='ar')pool.push({e,k:`${x.key}~${i}`})})}));start(shuffle(pool),{name:'Speed challenge',mode:'challenge',secs:60})};
+  $('#chal').onclick=()=>{if(!once($('#chal')))return;const pool=[];TRACKS.forEach(t=>lessons(t).forEach(x=>{if(S.done[x.key]||S.unlockAll||t.id==='java'&&x.u.uid==='foundations')x.l.ex.forEach((e,i)=>{if(e.t!=='ar'&&e.t!=='type')pool.push({e,k:`${x.key}~${i}`})})}));start(shuffle(pool),{name:'Speed challenge',mode:'challenge',secs:60})};
   $$('.weak').forEach(b=>b.onclick=()=>{if(!once(b))return;const L=lessonOf(b.dataset.k);start(shuffle(L.ex.map((e,i)=>({e,k:`${b.dataset.k}~${i}`}))),{name:'Practice: '+L.name,mode:'practice',pk:b.dataset.k})});
 }
 // ---------- interview ----------
@@ -443,7 +447,7 @@ function shop(){cur='shop';daily();
   shell(`<h1 class="h1">Gem Shop</h1><div class="wallet" aria-label="${S.gems} gems"><span>💎</span><div><b>${compact(S.gems)}</b><small>gems · earned from lessons, goals, streaks and interviews. Just for fun: no real money involved.</small></div></div>
   <div class="inv">Your stuff: ✂️ ${S.inv.fifty||0} · ⏭️ ${S.inv.skip||0} · 🧊 ${S.freezes}/2 ${dblOn()?'· ⚡ active':''}</div>
   ${ITEMS.map(([id,ic,n,d,c,ok])=>{const ready=ok()&&S.gems>=c;const label=!ok()?(id==='hearts'?'Full':'Max'):S.gems<c?`Need ${c-S.gems}`:`💎 ${c}`;return `<div class="sitem"><span class="pic">${ic}</span><div><b>${n}</b><small>${d}</small></div><button class="btn sm buy" data-id="${id}" ${ready?'':'disabled'} aria-label="${esc(n)}: ${label}">${label}</button></div>`}).join('')}
-  <h2 class="h2">How to earn gems</h2><ul class="muted earn"><li>Finish a lesson: +5 (perfect lesson: +10)</li><li>Hit your daily goal: +10</li><li>Every 7-day streak: +20</li><li>Level up: +20</li><li>Daily quest: +15</li><li>All 3 quests: +25</li><li>Mock interview: +2 per correct answer</li><li>Speed challenge: +1 per correct answer</li></ul>`);
+  <h2 class="h2">How to earn gems</h2><ul class="muted earn"><li>Finish a lesson: +5 (perfect lesson: +10)</li><li>Pass a unit check the first time: +5</li><li>Hit your daily goal: +10</li><li>Every 7-day streak: +20</li><li>Level up: +20</li><li>Daily quest: +15</li><li>All 3 quests: +25</li><li>Mock interview: +2 per correct answer</li><li>Speed challenge: +1 per correct answer</li></ul>`);
   $$('.buy').forEach(b=>b.onclick=()=>{const it=ITEMS.find(x=>x[0]===b.dataset.id);const now=Date.now();if(!it||S.gems<it[4]||!it[5]()||now-(buyAt[it[0]]||0)<400)return;buyAt[it[0]]=now;S.gems-=it[4];it[6]();S.stats.bought=(S.stats.bought||0)+1;sfx.coin();buzz(20);toast(`${it[1]} ${it[2]} purchased!`);checkBadges();save();shop()})}
 // ---------- profile ----------
 const buyAt={},tapLock={};let addLock=false;
@@ -532,8 +536,8 @@ function armSessionWatch(){
   },1000);
 }
 function start(items,opt){
-  clearInterval(timerId);clearInterval(heartWatch);daily();if((opt.mode==='lesson'||opt.mode==='practice')&&S.hearts<=0){histPush({screen:'hearts'});return outOfHearts()}
-  R=Object.assign({q:items.slice(),total:items.length,done:0,correct:0,mist:new Set(),res:[],t0:Date.now()},opt);
+  clearInterval(timerId);clearInterval(heartWatch);daily();if((opt.mode==='lesson'||opt.mode==='practice'||opt.mode==='quiz')&&S.hearts<=0){histPush({screen:'hearts'});return outOfHearts()}
+  R=Object.assign({q:items.slice(),total:items.length,done:0,correct:0,mist:new Set(),res:[],t0:Date.now(),quizItems:opt.mode==='quiz'?items.slice():null},opt);
   armSessionWatch();
   histPush({screen:'session',back:cur});
   if(R.mode==='challenge'||R.mode==='interview'){R.end=Date.now()+R.secs*1000;timerId=setInterval(tick,250)}
@@ -552,16 +556,19 @@ function next(){
   if(e.code)h+=`<pre class="code" tabindex="0" aria-label="Code">${hl(e.code)}</pre>`;
   if(e.t==='fix')h+=`<p class="fixnote">Pick the line that makes this correct.</p>`;
   if(e.t==='ar')h+=`<div class="zone" id="ans" aria-label="Your answer"><span class="ph">Tap lines below in the right order</span></div><div class="zone bank" id="bank"></div>`;
+  else if(e.t==='type'){const hint=e.grade==='strict'?'Match the spacing. A semicolon is not accepted here.':e.grade==='space'?'Extra spaces are fine. A semicolon is not accepted here.':'Extra spaces are fine, and one trailing semicolon is optional.';
+    h+=`<label class="typelab" for="typebox">${esc(hint)}</label><textarea id="typebox" class="typebox" rows="2" spellcheck="false" autocapitalize="none" autocorrect="off" autocomplete="off" enterkeyhint="done" aria-label="Your code"></textarea>`}
   else{const lst=e.t==='bug'?e.lines.map((x,i)=>[x,i]):shuffle(e.opts.map((x,i)=>[x,i]));
     h+=`<div class="opts" role="radiogroup" aria-labelledby="prompt">`+lst.map(([x,i],n)=>`<button role="radio" aria-checked="false" class="opt ${e.t!=='mc'?'code':''}" data-i="${i}"><kbd>${n+1}</kbd>${e.t==='bug'?`<span class="sr">Line ${n+1}. </span>`:''}<span>${e.t==='mc'?esc(x):hl(x)}</span></button>`).join('')+`</div>`}
   const pw=R.mode!=='placement'&&R.mode!=='interview';
-  h+=`</main><footer class="foot" id="ft"><div class="in">${pw?`<div class="pups"><button class="pup" id="ff" ${S.inv.fifty&&e.t!=='ar'&&e.t!=='bug'?'':'disabled'}>✂️ 50/50 <b>${S.inv.fifty||0}</b><span class="sr"> hint, ${S.inv.fifty||0} left</span></button><button class="pup" id="sk" ${S.inv.skip?'':'disabled'}>⏭️ Skip <b>${S.inv.skip||0}</b><span class="sr">, ${S.inv.skip||0} left</span></button></div>`:''}<button class="btn" id="chk" disabled>Check</button></div></footer>`;
+  h+=`</main><footer class="foot" id="ft"><div class="in">${pw?`<div class="pups"><button class="pup" id="ff" ${S.inv.fifty&&e.t!=='ar'&&e.t!=='bug'&&e.t!=='type'?'':'disabled'}>✂️ 50/50 <b>${S.inv.fifty||0}</b><span class="sr"> hint, ${S.inv.fifty||0} left</span></button><button class="pup" id="sk" ${S.inv.skip?'':'disabled'}>⏭️ Skip <b>${S.inv.skip||0}</b><span class="sr">, ${S.inv.skip||0} left</span></button></div>`:''}<button class="btn" id="chk" disabled>Check</button></div></footer>`;
   app.className='';app.innerHTML=h;tick&&timed()&&tick();
   $('#x').onclick=quit;
   const chk=$('#chk');
   if(e.t==='ar'){const bank=$('#bank'),ans=$('#ans');
     shuffle(e.lines.map((x,i)=>[x,i])).forEach(([x])=>{const c=document.createElement('button');c.className='chip';c.innerHTML=hl(x);c.dataset.raw=x;c.onclick=()=>{$('.ph')?.remove();(c.parentNode===bank?ans:bank).appendChild(c);chk.disabled=bank.children.length>0;tone(520,.04)};bank.appendChild(c)});
     chk.onclick=()=>{if(!once(chk))return;judge([...ans.children].map(c=>c.dataset.raw).join('\n')===e.lines.join('\n'),e.lines.join('\n'),null)}}
+  else if(e.t==='type'){const box=$('#typebox');box.oninput=()=>{chk.disabled=!box.value.trim()};chk.onclick=()=>{if(!once(chk))return;box.readOnly=true;judge(gradeTyped(e,box.value),e.canon,null)}}
   else{$$('.opt').forEach(b=>b.onclick=()=>{if(b.disabled||!once(b))return;$$('.opt').forEach(o=>{o.classList.remove('sel');o.setAttribute('aria-checked','false')});b.classList.add('sel');b.setAttribute('aria-checked','true');sel=+b.dataset.i;chk.disabled=false;tone(520,.04)});
     chk.onclick=()=>{if(!once(chk))return;$$('.opt').forEach(o=>{o.disabled=true;if(+o.dataset.i===e.a)o.classList.add('right');else if(+o.dataset.i===sel)o.classList.add('wrong')});
       judge(sel===e.a,e.t==='bug'?`Line ${e.a+1}: ${e.lines[e.a].trim()}`:e.opts[e.a],sel)}}
@@ -610,8 +617,8 @@ function judge(ok,ans,sel){
   if(ok){R.done++;if(first){R.correct++;qBump('correct')}sfx.ok();buzz(15);
     if(S.review[k]&&first){const b=S.review[k].box+1;if(b>3)delete S.review[k];else S.review[k]={box:b,due:Date.now()+[0,1,3,7][b]*DAY}}}
   else{R.mist.add(k);sfx.no();buzz([40,40,60]);S.review[k]={box:0,due:Date.now()};
-    if(!k.startsWith('iv')&&R.mode!=='practice'){const lk=k.split('~')[0];S.misses[lk]=(S.misses[lk]||0)+1}
-    if(!timed()&&R.mode!=='placement'&&R.mode!=='review')R.q.push(it);else R.done++;
+    if(!k.startsWith('iv')&&R.mode!=='practice'&&R.mode!=='quiz'){const lk=k.split('~')[0];S.misses[lk]=(S.misses[lk]||0)+1}
+    if(!timed()&&R.mode!=='placement'&&R.mode!=='review'&&R.mode!=='quiz')R.q.push(it);else R.done++;
     if(!noHearts()){if(S.hearts>=5)S.heartAt=Date.now();S.hearts=Math.max(0,S.hearts-1)}
     $('.qmain').classList.add('shake');if($('#hs'))$('#hs').textContent='❤️ '+S.hearts}
   if(R.mode==='practice'&&ok&&first&&R.pk&&S.misses[R.pk]){S.misses[R.pk]--;if(!S.misses[R.pk])delete S.misses[R.pk]}
@@ -644,19 +651,26 @@ function finish(timeUp){
   let xp=0,gem=0,title='Lesson complete!',extra='';
   const answered=R.res.filter(r=>r.ok!==null).length;
   const skipped=R.res.some(r=>r.ok===null);
+  const quizPass=m==='quiz'&&R.correct>=R.pass;
+  const quizAgain=R.quizItems,quizKey=R.key,quizName=R.name,quizNeed=R.pass,quizCorrect=R.correct,quizTotal=R.total;
   if(m==='lesson'){const fresh=!S.done[R.key];S.done[R.key]=true;if(fresh){S.stats.lessons++;dl().l++;qBump('lessons')}xp=10+R.correct*2;gem=5;if(!R.mist.size&&!skipped){S.stats.perfect++;gem=10;xp+=5;qBump('perfect')}}
+  else if(m==='quiz'){title=quizPass?'Unit check passed':'Unit check not passed';if(quizPass){const fresh=!S.done[R.key];S.done[R.key]=true;if(fresh){xp=10+R.correct*2;gem=5}}}
   else if(m==='review'){S.stats.reviews++;xp=5+R.correct;title='Review complete!';qBump('review');S.hearts=Math.min(5,S.hearts+1);extra='<p class="muted">+1 ❤️ for reviewing</p>'}
   else if(m==='practice'||m==='saved'){xp=5+R.correct;title='Practice complete!';qBump('review')}
   else if(m==='challenge'){title=timeUp?'Time\'s up!':'Challenge complete!';xp=R.correct*2;gem=R.correct;S.stats.challenges++;if(R.correct>(S.stats.bestChal||0)){S.stats.bestChal=R.correct;extra='<p class="pill up">🎉 New personal best!</p>'}}
   else if(m==='placement'){title='Placement result';const pass=R.correct>=Math.ceil(R.total*.8);if(pass){DRILL.forEach(id=>S.done[id]=true);S.gates=Object.assign({},S.gates,{css:true})}xp=R.correct;extra=pass?'<p class="pill up">✅ Language drill marked done. HTML &amp; CSS is open. JavaFX still waits for object-oriented Java, and the how-it-runs lessons stay on your path.</p>':'<p class="muted">Let\'s start from the foundations — they\'ll go fast.</p>'}
   if(m==='interview')return ivSummary(timeUp);
   const acc=answered?Math.round(R.correct/(m==='lesson'||m==='practice'||m==='saved'?R.total:answered)*100):0;
-  const lv0=level().L;xp=addXP(xp);if(gem)S.gems+=gem;const lv1=level().L;if(lv1>lv0){S.gems+=20;extra+=`<p class="pill lvup">🆙 Level up! You reached level ${lv1} · +20 💎</p>`}checkBadges();save();sfx.win();buzz([30,50,30]);const secs=Math.round((Date.now()-R.t0)/1000);
-  shell(`<div class="center finish"><div class="trophy" aria-hidden="true"><div class="big">${m==='challenge'?'⏱️':m==='placement'?'🧭':'🏆'}</div></div><h1 class="h1">${title}</h1><p class="muted">${esc(R.name)}</p>
-  <div class="cards"><div class="card xp">⚡<b>+${xp}</b>XP</div><div class="card">${m==='challenge'?'✅':'🎯'}<b>${m==='challenge'?R.correct:acc+'%'}</b>${m==='challenge'?'correct':'accuracy'}</div><div class="card gem">💎<b>+${gem}</b>gems</div></div>${extra}<p class="muted sm">⏱ ${Math.floor(secs/60)}m ${secs%60}s</p>
+  const lv0=level().L;if(m!=='quiz'||quizPass)xp=addXP(xp);if(gem)S.gems+=gem;const lv1=level().L;if(lv1>lv0){S.gems+=20;extra+=`<p class="pill lvup">🆙 Level up! You reached level ${lv1} · +20 💎</p>`}checkBadges();save();if(m==='quiz'&&!quizPass){sfx.no();buzz([40,40,60])}else{sfx.win();buzz([30,50,30])}const secs=Math.round((Date.now()-R.t0)/1000);
+  const score=m==='quiz'?quizCorrect+'/'+quizTotal:(m==='challenge'?R.correct:acc+'%');
+  shell(`<div class="center finish"><div class="trophy" aria-hidden="true"><div class="big">${m==='challenge'?'⏱️':m==='placement'?'🧭':m==='quiz'?'📝':'🏆'}</div></div><h1 class="h1">${title}</h1><p class="muted">${esc(m==='quiz'?quizName:R.name)}</p>
+  <div class="cards"><div class="card xp">⚡<b>+${xp}</b>XP</div><div class="card">${m==='challenge'?'✅':'🎯'}<b>${score}</b>${m==='challenge'?'correct':m==='quiz'?'score':'accuracy'}</div><div class="card gem">💎<b>+${gem}</b>gems</div></div>${extra}${m==='quiz'?`<p class="pill ${quizPass?'up':'warn'}">${quizPass?'Passed':'Not passed'} · ${quizNeed} of ${quizTotal} to pass. Gems stay in the app.</p>`:''}<p class="muted sm">⏱ ${Math.floor(secs/60)}m ${secs%60}s</p>
   ${R.mist.size&&m!=='placement'?`<p class="muted">${plural(R.mist.size,'missed question')} saved to Review.</p>`:m==='lesson'&&!skipped?'<p class="pill up">Flawless — 10 gems</p>':''}</div>`,{nav:false});
-  app.insertAdjacentHTML('beforeend','<footer class="foot"><div class="in"><button class="btn" id="h">Continue</button></div></footer>');$('#h').onclick=()=>{if(!once($('#h')))return;navBack(home)};$('#h').focus();
-  confetti();
+  const retry=m==='quiz'&&!quizPass?`<button class="btn alt" id="retry">Retry unit check</button>`:'';
+  app.insertAdjacentHTML('beforeend',`<footer class="foot"><div class="in">${retry}<button class="btn" id="h">${m==='quiz'&&!quizPass?'Back to path':'Continue'}</button></div></footer>`);
+  if($('#retry'))$('#retry').onclick=()=>{if(!once($('#retry')))return;start(quizAgain,{key:quizKey,name:quizName,mode:'quiz',pass:quizNeed})};
+  $('#h').onclick=()=>{if(!once($('#h')))return;navBack(home)};$('#h').focus();
+  if(!(m==='quiz'&&!quizPass))confetti();
 }
 function ivSummary(timeUp){
   const total=R.total,cor=R.correct,pct=Math.round(cor/total*100),dur=Math.round((Date.now()-R.t0)/1000),byTag={};
@@ -674,7 +688,7 @@ function ivSummary(timeUp){
 }
 function confetti(){if(matchMedia('(prefers-reduced-motion: reduce)').matches)return;for(let i=0;i<48;i++){const c=document.createElement('div');c.className='conf';c.style.left=Math.random()*100+'vw';c.style.background=['#16a34a','#f97316','#0ea5e9','#8b5cf6','#facc15','#ef4444'][i%6];c.style.animationDelay=Math.random()*.6+'s';c.style.animationDuration=1.4+Math.random()+'s';document.body.appendChild(c);setTimeout(()=>c.remove(),3200)}}
 // ---------- keyboard ----------
-document.addEventListener('keydown',ev=>{if(ev.target.tagName==='INPUT')return;const k=ev.key;
+document.addEventListener('keydown',ev=>{if(ev.target.tagName==='TEXTAREA'){if(ev.key==='Enter'&&(ev.metaKey||ev.ctrlKey)){const b=$('#chk');if(b&&!b.disabled){b.click();ev.preventDefault()}}return}if(ev.target.tagName==='INPUT')return;const k=ev.key;
   if(/^[1-9]$/.test(k)&&$('#bank')){const c=$$('#bank .chip')[+k-1];if(c){c.click();ev.preventDefault()}return}
   if(k==='Backspace'&&$('#ans')){const c=[...$$('#ans .chip')].pop();if(c){c.click();ev.preventDefault()}return}
   if(/^[1-9]$/.test(k)){const o=$$('.opt').filter(o=>!o.disabled)[+k-1];if(o){o.click();ev.preventDefault()}}

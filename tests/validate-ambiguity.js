@@ -30,7 +30,10 @@ function check(id, e) {
   if (correct !== '' && hits > 1) bad(id + ' repeats the correct option ' + hits + ' times: ' + JSON.stringify(correct));
 }
 
-for (const t of TRACKS) for (const u of t.units) for (const l of u.lessons) l.ex.forEach((e, i) => check(l.id + '~' + i, e));
+for (const t of TRACKS) for (const u of t.units) {
+  for (const l of u.lessons) l.ex.forEach((e, i) => check(l.id + '~' + i, e));
+  if (u.quiz) u.quiz.ex.forEach((e, i) => check(u.quiz.id + '~' + i, e));
+}
 IV.forEach((e, i) => check('iv-' + i, e));
 
 if (issues.length) {

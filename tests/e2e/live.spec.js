@@ -118,7 +118,7 @@ test('the shop lists every gem reward', async ({ page }, testInfo) => {
 
 test('an open tab installs a newer service worker without reloading', async ({ page }, testInfo) => {
   const real = fs.readFileSync(swPath, 'utf8');
-  let body = real.replaceAll('byteryte-v26', 'byteryte-v25');
+  let body = real.replaceAll('byteryte-v27', 'byteryte-v26');
   await page.context().route('**/sw.js', (route) => {
     route.fulfill({
       status: 200,
@@ -130,7 +130,7 @@ test('an open tab installs a newer service worker without reloading', async ({ p
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
-  await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes('byteryte-v25'))).toBe(true);
+  await expect.poll(() => page.evaluate(async () => (await caches.keys()).includes('byteryte-v26'))).toBe(true);
   await expect(page.getByText('A new version of ByteRyte is ready. Reload to use it.')).toHaveCount(0);
   body = real;
   await page.evaluate(async () => {
@@ -141,7 +141,7 @@ test('an open tab installs a newer service worker without reloading', async ({ p
   await expect(page.getByText('A new version of ByteRyte is ready. Reload to use it.')).toBeVisible();
   await expect.poll(async () => page.evaluate(async () => {
     const keys = await caches.keys();
-    return { v26: keys.includes('byteryte-v26'), v25: keys.includes('byteryte-v25') };
-  })).toEqual({ v26: true, v25: false });
+    return { v27: keys.includes('byteryte-v27'), v26: keys.includes('byteryte-v26') };
+  })).toEqual({ v27: true, v26: false });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
 });

@@ -55,6 +55,11 @@ export async function answerSession(page) {
           if (!chip) throw new Error('missing arrange line: ' + line);
           chip.click();
         }
+      } else if (e.t === 'type') {
+        const box = document.querySelector('#typebox');
+        if (!box) throw new Error('missing type box');
+        box.value = e.canon;
+        box.dispatchEvent(new Event('input', { bubbles: true }));
       } else {
         const opt = document.querySelector('.opt[data-i="' + e.a + '"]');
         if (!opt) throw new Error('missing choice for ' + e.t + ' ' + (e.q || '').slice(0, 80));
