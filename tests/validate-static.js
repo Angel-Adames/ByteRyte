@@ -9,7 +9,9 @@ const bad = m => issues.push(m);
 const app = read('app.js'), sw = read('sw.js'), index = read('index.html'), manifest = read('manifest.webmanifest'), css = read('style.css'), boot = read('boot.js');
 const all = [app, sw, index, manifest, css, boot, read('data.js'), read('interview.js'), read('rytia.js'), read('README.md')].join('\n');
 
-if (!/const C='byteryte-v28'/.test(sw)) bad('service worker cache is not byteryte-v28');
+if (!/const C='byteryte-v29'/.test(sw)) bad('service worker cache is not byteryte-v29');
+if (!/updateViaCache:'none'/.test(boot)) bad('service worker must be registered with updateViaCache none');
+if (!sw.includes('clients.claim') || !sw.includes('byteryte-reload')) bad('a new worker must claim clients and tell open windows to reload');
 if (!app.includes('aria-labelledby="appear"')) bad('appearance group has no name');
 if (!app.includes('aria-labelledby="prompt"')) bad('answer group has no name');
 if (!app.includes('Adds 15 minutes. A lesson you start while it is active earns 2× XP')) bad('double xp copy');
@@ -18,7 +20,7 @@ if (!sw.includes("'boot.js'")) bad('service worker precache is missing boot.js')
 if (!sw.includes("'rytia.js'")) bad('service worker precache is missing rytia.js');
 if (!sw.includes("'grade.js'")) bad('service worker precache is missing grade.js');
 if (!/start_url"\s*:\s*"\.\/"/.test(manifest) || !/"scope"\s*:\s*"\.\/"/.test(manifest)) bad('manifest start_url and scope must stay relative ./');
-if (!/serviceWorker\.register\('sw\.js'\)/.test(boot)) bad('service worker must register as sw.js');
+if (!/serviceWorker\.register\('sw\.js'/.test(boot)) bad('service worker must register as sw.js');
 if (/register\(['"]\/|register\(['"]https?:/.test(boot + index)) bad('service worker registration is not relative');
 if (/<script(?![^>]*\bsrc=)[^>]*>/.test(index)) bad('index.html still has an inline script');
 if (!/src="boot\.js"/.test(index)) bad('index.html must load boot.js');

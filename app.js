@@ -752,6 +752,6 @@ addEventListener('storage',e=>{
   try{P=next;hydrate();if(!busy){const n=cur||'learn';cur='';show(n)}}
   finally{syncing=false}
 });
-if('serviceWorker' in navigator){let had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had){had=true;return}toast('A new version of ByteRyte is ready. Reload to use it.')})}
+if('serviceWorker' in navigator){let had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had){had=true;return}try{if(sessionStorage.getItem('byteryte-sw-reload')==='1')return;sessionStorage.setItem('byteryte-sw-reload','1')}catch(e){}location.reload()})}
 window.__BR={get S(){return S},P:()=>P,cur:()=>R&&R.q[0]&&R.q[0].e};
 })();
