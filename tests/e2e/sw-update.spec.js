@@ -32,7 +32,7 @@ test('an open tab moves from an old cached version onto the newly deployed asset
     }
     return route.continue();
   });
-  await boot(page, testInfo);
+  await boot(page, testInfo, { profile: { name: 'Ada', xp: 80, done: { 'java.run': true } } });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await expect.poll(() => page.evaluate(() => ({
@@ -56,8 +56,13 @@ test('an open tab moves from an old cached version onto the newly deployed asset
   };
   await expect.poll(readGen, { timeout: 20000 }).toEqual({ asset: 'new', doc: 'new', css: 'new' });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
+  const kept = await page.evaluate(() => {
+    const s = window.__BR.S;
+    return { name: s.name, xp: s.xp, run: !!(s.done && s.done['java.run']) };
+  });
+  expect(kept).toEqual({ name: 'Ada', xp: 80, run: true });
   const names = await page.evaluate(async () => (await caches.keys()).sort());
-  expect(names).toContain('byteryte-v29');
+  expect(names).toContain('byteryte-v30');
   expect(names).not.toContain('byteryte-old');
 
   await page.context().setOffline(true);

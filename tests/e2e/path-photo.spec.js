@@ -153,6 +153,48 @@ test('a photo uploads, shows, persists, and can be removed', async ({ page }, te
   expect(await storedPhoto(page)).toBe('');
 });
 
+test('a chosen photo clears the emoji highlight, and picking an emoji brings one back', async ({ page }, testInfo) => {
+  await boot(page, testInfo, { profile: { name: 'Ada', avatar: '🦊', xp: 12 } });
+  await openEdit(page);
+  await expect(page.getByLabel('Your name')).toHaveValue('Ada');
+  const fox = page.getByRole('radio', { name: 'Fox avatar' });
+  const panda = page.getByRole('radio', { name: 'Panda avatar' });
+  await expect(fox).toHaveAttribute('aria-checked', 'true');
+  await expect(fox).toHaveClass(/\bon\b/);
+  await page.locator('#pic').setInputFiles({ name: 'ada.png', mimeType: 'image/png', buffer: photoPng });
+  await expect(page.locator('#avprev img')).toBeVisible();
+  await expect(page.locator('.avs .avatar.on')).toHaveCount(0);
+  await expect(page.locator('.avs [aria-checked="true"]')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await openEdit(page);
+  await expect(page.getByLabel('Your name')).toHaveValue('Ada');
+  await expect(page.locator('.avs .avatar.on')).toHaveCount(0);
+  await expect(page.locator('#avprev img')).toBeVisible();
+  await panda.click();
+  await expect(page.locator('#avprev img')).toHaveCount(0);
+  await expect(panda).toHaveAttribute('aria-checked', 'true');
+  await expect(panda).toHaveClass(/\bon\b/);
+  await expect(fox).toHaveAttribute('aria-checked', 'false');
+  await page.locator('#pic').setInputFiles({ name: 'ada.png', mimeType: 'image/png', buffer: photoPng });
+  await expect(page.locator('.avs .avatar.on')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Remove photo' }).click();
+  await expect(panda).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.avs .avatar.on')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await page.getByRole('button', { name: '＋ Add profile' }).click();
+  await expect(page.getByRole('button', { name: 'Start from scratch' })).toBeVisible();
+  await expect(page.getByPlaceholder('e.g. Alex')).toHaveValue('');
+  await expect(page.getByRole('radio', { name: 'Fox avatar' })).toHaveAttribute('aria-checked', 'true');
+  await page.locator('#pic').setInputFiles({ name: 'ada.png', mimeType: 'image/png', buffer: photoPng });
+  await expect(page.locator('.avs .avatar.on')).toHaveCount(0);
+  await expect(page.locator('.avs [aria-checked="true"]')).toHaveCount(0);
+  await page.getByRole('radio', { name: 'Owl avatar' }).click();
+  await expect(page.getByRole('radio', { name: 'Owl avatar' })).toHaveAttribute('aria-checked', 'true');
+  await expect(page.locator('.avs .avatar.on')).toHaveCount(1);
+  await expect(page.locator('#avprev img')).toHaveCount(0);
+  await expect(page.locator('.sitem .avatar.on')).toHaveCount(0);
+});
+
 test('a bad photo is refused and a good one survives reset, import, and another tab', async ({ page }, testInfo) => {
   await boot(page, testInfo, { profile: { xp: 40, name: 'Ada' } });
   await openEdit(page);
