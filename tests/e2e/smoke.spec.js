@@ -48,10 +48,12 @@ test('every screen opens in this theme and viewport', async ({ page }) => {
 
 test('settings keep larger text, sound, and theme', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByRole('switch', { name: 'Larger text' }).click();
+  await page.getByRole('radio', { name: 'Large', exact: true }).click();
   await page.getByRole('switch', { name: 'Sound effects' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-text', 'lg');
   await expect(page.locator('html')).toHaveAttribute('data-big', '');
   await page.reload();
+  await expect(page.locator('html')).toHaveAttribute('data-text', 'lg');
   await expect(page.locator('html')).toHaveAttribute('data-big', '');
   const sound = await page.evaluate(() => JSON.parse(localStorage.getItem('byteroots-settings')).sound);
   expect(sound).toBe(true);

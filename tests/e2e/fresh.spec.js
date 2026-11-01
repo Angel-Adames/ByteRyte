@@ -253,8 +253,9 @@ test('the local day follows a timezone change', async ({ page }, testInfo) => {
 test('larger text keeps the home screen inside the viewport', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByRole('switch', { name: 'Larger text' }).click();
+  await page.getByRole('radio', { name: 'Large', exact: true }).click();
   await page.getByRole('button', { name: 'Learn', exact: true }).click();
+  expect(await page.evaluate(() => document.documentElement.dataset.text)).toBe('lg');
   expect(await page.evaluate(() => document.documentElement.hasAttribute('data-big'))).toBe(true);
   expect(await overflow(page)).toEqual([]);
   await page.evaluate(() => { document.documentElement.style.zoom = '2'; });
@@ -276,13 +277,13 @@ test('larger text keeps the home screen inside the viewport', async ({ page }, t
   expect(zoomed).toEqual([]);
 });
 
-test('service worker v30 replaces a v29 cache and keeps the open tab on the app', async ({ page }, testInfo) => {
+test('service worker v31 replaces a v30 cache and keeps the open tab on the app', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await page.evaluate(async () => {
-    const cache = await caches.open('byteryte-v29');
-    await cache.put(new Request(new URL('legacy-v29.txt', location.href)), new Response('old'));
+    const cache = await caches.open('byteryte-v30');
+    await cache.put(new Request(new URL('legacy-v30.txt', location.href)), new Response('old'));
     const reg = await navigator.serviceWorker.getRegistration();
     if (reg) await reg.unregister();
   });
@@ -292,10 +293,10 @@ test('service worker v30 replaces a v29 cache and keeps the open tab on the app'
     try {
       return await page.evaluate(async () => {
         const keys = await caches.keys();
-        return { v30: keys.includes('byteryte-v30'), v29: keys.includes('byteryte-v29') };
+        return { v31: keys.includes('byteryte-v31'), v30: keys.includes('byteryte-v30') };
       });
-    } catch (e) { return { v30: false, v29: true }; }
-  }).toEqual({ v30: true, v29: false });
+    } catch (e) { return { v31: false, v30: true }; }
+  }).toEqual({ v31: true, v30: false });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new Event('controllerchange')));
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
