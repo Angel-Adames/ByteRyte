@@ -1,5 +1,5 @@
 import { test, expect } from './console.js';
-import { boot } from './helpers.js';
+import { boot, passCoursePick } from './helpers.js';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -138,6 +138,7 @@ test('a photo uploads, shows, persists, and can be removed', async ({ page }, te
   expect(await storedPhoto(page)).toBe(saved);
   if (testInfo.project.name.startsWith('desk')) await expect(page.locator('.rail .avimg')).toBeVisible();
   await page.getByRole('button', { name: '＋ Add profile' }).click();
+  await passCoursePick(page);
   await page.getByRole('button', { name: 'Start from scratch' }).click();
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
   const round = await page.locator('.sitem .pic.has-photo').evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius));
@@ -182,6 +183,7 @@ test('a chosen photo clears the emoji highlight, and picking an emoji brings one
   await expect(page.locator('.avs .avatar.on')).toHaveCount(1);
   await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   await page.getByRole('button', { name: '＋ Add profile' }).click();
+  await passCoursePick(page);
   await expect(page.getByRole('button', { name: 'Start from scratch' })).toBeVisible();
   await expect(page.getByPlaceholder('e.g. Alex')).toHaveValue('');
   await expect(page.getByRole('radio', { name: 'Fox avatar' })).toHaveAttribute('aria-checked', 'true');

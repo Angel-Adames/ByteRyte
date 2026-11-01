@@ -1,5 +1,5 @@
 import { test, expect } from './console.js';
-import { boot, state, answerSession } from './helpers.js';
+import { boot, state, answerSession, passCoursePick } from './helpers.js';
 
 async function revsMatch(page, other) {
   await expect.poll(async () => {
@@ -103,11 +103,13 @@ test('a corrupt doubleUntil does not stay active for a year', async ({ page }, t
 
 test('corrupt profile JSON boots a new profile', async ({ page }, testInfo) => {
   await boot(page, testInfo, { raw: '{' });
+  await passCoursePick(page);
   await expect(page.getByRole('heading', { name: /Welcome to ByteRyte/ })).toBeVisible();
 });
 
 test('a profile list that is an array boots a new profile', async ({ page }, testInfo) => {
   await boot(page, testInfo, { raw: '[]' });
+  await passCoursePick(page);
   await expect(page.getByRole('heading', { name: /Welcome to ByteRyte/ })).toBeVisible();
 });
 

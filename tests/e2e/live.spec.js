@@ -112,13 +112,13 @@ test('the shop lists every gem reward', async ({ page }, testInfo) => {
   await page.getByRole('button', { name: 'Shop', exact: true }).click();
   await expect(page.getByText('Level up: +20')).toBeVisible();
   await expect(page.getByText('Daily quest: +15')).toBeVisible();
-  await expect(page.getByText('All 3 quests: +25')).toBeVisible();
+  await expect(page.getByText('All 3 quests: a gem chest (10 to 120)')).toBeVisible();
   await expect(page.getByText('Adds 15 minutes. A lesson you start while it is active earns 2× XP')).toBeVisible();
 });
 
 test('an open tab installs a newer service worker without reloading', async ({ page }, testInfo) => {
   const real = fs.readFileSync(swPath, 'utf8');
-  let body = real.replaceAll('byteryte-v32', 'byteryte-v31');
+  let body = real.replaceAll('byteryte-v33', 'byteryte-v32');
   await page.context().route('**/sw.js', (route) => {
     route.fulfill({
       status: 200,
@@ -130,7 +130,7 @@ test('an open tab installs a newer service worker without reloading', async ({ p
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
-  await expect.poll(async () => { try { return await page.evaluate(async () => (await caches.keys()).includes('byteryte-v31')); } catch (e) { return false; } }).toBe(true);
+  await expect.poll(async () => { try { return await page.evaluate(async () => (await caches.keys()).includes('byteryte-v32')); } catch (e) { return false; } }).toBe(true);
   body = real;
   await page.evaluate(async () => {
     const reg = await navigator.serviceWorker.getRegistration();
@@ -141,9 +141,9 @@ test('an open tab installs a newer service worker without reloading', async ({ p
     try {
       return await page.evaluate(async () => {
         const keys = await caches.keys();
-        return { v32: keys.includes('byteryte-v32'), v31: keys.includes('byteryte-v31') };
+        return { v33: keys.includes('byteryte-v33'), v32: keys.includes('byteryte-v32') };
       });
-    } catch (e) { return { v32: false, v31: true }; }
-  }).toEqual({ v32: true, v31: false });
+    } catch (e) { return { v33: false, v32: true }; }
+  }).toEqual({ v33: true, v32: false });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
 });

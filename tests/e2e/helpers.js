@@ -28,6 +28,15 @@ export function themeOf(testInfo) {
   return testInfo.project.use.brTheme || 'light';
 }
 
+export async function passCoursePick(page) {
+  const head = page.getByRole('heading', { name: 'What do you want to learn first?' });
+  try { await head.waitFor({ timeout: 4000 }); } catch (e) { return; }
+  await page.getByRole('button', { name: /^Java\./ }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('button', { name: 'Skip', exact: true }).click();
+  await page.getByRole('button', { name: 'Start from scratch' }).waitFor();
+}
+
 export async function boot(page, testInfo, opts = {}) {
   if (opts.time) await page.clock.install({ time: opts.time });
   await seed(page, {

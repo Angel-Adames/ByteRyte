@@ -21,6 +21,7 @@ if(!P||typeof P!=='object'||Array.isArray(P)){P={active:null,list:{}};const old=
 let S;
 function finite(v,d,min,max){const n=Number(v);if(!Number.isFinite(n))return d;let x=n;if(min!=null&&x<min)x=min;if(max!=null&&x>max)x=max;return x}
 function cleanPhoto(v){if(typeof v!=='string'||v.length<32||v.length>100000)return '';return /^data:image\/jpeg;base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(v)?v:''}
+const LOOT={tiers:[{id:'common',name:'Common',gems:[10,15]},{id:'rare',name:'Rare',gems:[25,35]},{id:'epic',name:'Epic',gems:[50,65]},{id:'legendary',name:'Legendary',gems:[90,120]}],base:[50,30,15,5],shift:[-5,2,2,1],rerolls:3};
 function sanitize(p){
   p.xp=Math.round(finite(p.xp,0,0,1e9));
   p.streak=Math.round(finite(p.streak,0,0,1e5));
@@ -73,6 +74,13 @@ function sanitize(p){
     Object.keys(p.qd.claimed).forEach(k=>{if(!questIds[k])delete p.qd.claimed[k];else p.qd.claimed[k]=1});
   }else delete p.qd;
   if(typeof TRACKS==='undefined'||!TRACKS.some(t=>t.id===p.track))p.track='java';
+  const trackIds=typeof TRACKS==='undefined'?['java']:TRACKS.map(t=>t.id);
+  const started=()=>{const out=[];Object.keys(p.done||{}).forEach(k=>{const id=String(k).split('.')[0];if(trackIds.includes(id)&&!out.includes(id))out.push(id)});if(trackIds.includes(p.track)&&!out.includes(p.track))out.unshift(p.track);return out};
+  const veteran=!!p.onboarded||p.xp>0||!!(p.stats&&p.stats.lessons)||Object.keys(p.done||{}).some(k=>p.done[k]);
+  if(!Array.isArray(p.courses))p.courses=veteran?(started().length?started():['java']):[];
+  else p.courses=[...new Set(p.courses.filter(id=>trackIds.includes(id)))];
+  if(p.courses.length&&!p.courses.includes(p.track))p.track=p.courses[0];
+  if(p.qd&&p.qd.loot){const L=p.qd.loot,ti=LOOT.tiers.findIndex(t=>t.id===L.tier);if(ti<0||!LOOT.tiers[ti].gems.includes(L.gems))delete p.qd.loot;else{L.used=Math.max(0,Math.min(LOOT.rerolls,Math.round(finite(L.used,0,0,LOOT.rerolls))));L.claimed=!!L.claimed;L.seed=Math.round(finite(L.seed,1,1,1e9))}}
   const dayOk=s=>{if(typeof s!=='string'||!/^\d{4}-\d{2}-\d{2}$/.test(s))return false;const d=new Date(s+'T12:00');return !isNaN(d.getTime())&&iso(d)===s};
   if(p.last!=null&&!dayOk(p.last))p.last=null;
   if(p.heartDay!=null&&!dayOk(p.heartDay))p.heartDay=null;
@@ -168,7 +176,9 @@ function mergeProg(mine,remote,base){
     mine.badges=copyMap(remote.badges);
     Object.keys(mineBadges).forEach(k=>{if(bad(k))return;if(mineBadges[k]&&!(base.badges&&base.badges[k]))mine.badges[k]=mineBadges[k]});
   }else mine.badges=keep(mineBadges,remote.badges,base.badges);
-  const takeQ=q=>({day:q.day,ids:q.ids.slice(),p:copyMap(q.p),claimed:copyMap(q.claimed),chest:!!q.chest});
+  const copyLoot=q=>q&&q.loot&&typeof q.loot==='object'&&!Array.isArray(q.loot)?Object.assign({},q.loot):null;
+  const takeQ=q=>({day:q.day,ids:q.ids.slice(),p:copyMap(q.p),claimed:copyMap(q.claimed),chest:!!q.chest,loot:copyLoot(q)});
+  const preferLoot=(a,b)=>{if(a&&a.claimed)return Object.assign({},a);if(b&&b.claimed)return Object.assign({},b);return a?Object.assign({},a):b?Object.assign({},b):null};
   if(bumped){
     if(remote.qd&&remote.qd.day){
       const mineQ=mine.qd;
@@ -177,6 +187,7 @@ function mergeProg(mine,remote,base){
         Object.keys(mineQ.p||{}).forEach(k=>{const delta=(mineQ.p[k]||0)-((base.qp&&base.qp[k])||0);if(delta>0)mine.qd.p[k]=Math.min(1e9,(mine.qd.p[k]||0)+delta)});
         Object.keys(mineQ.claimed||{}).forEach(k=>{if(bad(k))return;if(mineQ.claimed[k]&&!(base.qclaimed&&base.qclaimed[k]))mine.qd.claimed[k]=1});
         if(mineQ.chest&&!base.qchest)mine.qd.chest=true;
+        mine.qd.loot=preferLoot(mineQ&&mineQ.loot,mine.qd.loot);if(mine.qd.loot&&mine.qd.loot.claimed)mine.qd.chest=true;
       }
     }else delete mine.qd;
   }else if(mine.qd&&remote.qd&&remote.qd.day&&mine.qd.day&&remote.qd.day>mine.qd.day){
@@ -189,6 +200,7 @@ function mergeProg(mine,remote,base){
     mine.qd.claimed=copyMap(mine.qd.claimed);
     Object.keys(remote.qd.claimed||{}).forEach(k=>{if(remote.qd.claimed[k])mine.qd.claimed[k]=1});
     if(remote.qd.chest||base.qchest)mine.qd.chest=true;
+    mine.qd.loot=preferLoot(mine.qd.loot,remote.qd.loot);if(mine.qd.loot&&mine.qd.loot.claimed)mine.qd.chest=true;
   }
   mine.gen=Math.max(mine.gen||0,remote.gen||0);
   if((mine.photo||'')===(base.photo||''))mine.photo=remote.photo||'';
@@ -323,14 +335,25 @@ function level(xp=S.xp){xp=Math.round(finite(xp,0,0,1e9));const T=n=>25*n*(n+3);
 const compact=n=>{n=Math.round(finite(n,0,-1e12,1e12));const s=n<0?'-':'';n=Math.abs(n);if(n>=1e9)return s+(n/1e9).toFixed(1).replace(/\.0$/,'')+'B';if(n>=1e6)return s+(n/1e6).toFixed(1).replace(/\.0$/,'')+'M';if(n>=10000)return s+(n/1000).toFixed(n>=100000?0:1).replace(/\.0$/,'')+'k';return s+String(n)};
 // ---------- daily quests ----------
 const QPOOL={lessons:['📚','Complete 2 lessons',2],correct:['🎯','Get 15 answers right',15],perfect:['💯','Finish a lesson with no mistakes',1],chal:['⏱️','Get 5 right in speed challenges',5],review:['🔁','Finish a review or practice session',1],iv:['💼','Complete a mock interview',1]};
+function lootOdds(n){const k=Math.max(0,Math.min(LOOT.rerolls,n|0));return LOOT.base.map((p,i)=>p+LOOT.shift[i]*k)}
+function mulberry(seed){let a=seed>>>0||1;const next=()=>{a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return ((t^t>>>14)>>>0)/4294967296};next.seed=()=>a>>>0;return next}
+function lootDraw(rng,used){const odds=lootOdds(used);let x=rng()*100,tier=LOOT.tiers.length-1;for(let i=0;i<odds.length;i++){x-=odds[i];if(x<0){tier=i;break}}const gems=LOOT.tiers[tier].gems;return {tier:LOOT.tiers[tier].id,gems:gems[Math.min(gems.length-1,Math.floor(rng()*gems.length))]}}
+function lootKeep(a,b){const rank=id=>LOOT.tiers.findIndex(t=>t.id===id);if(!a)return b;if(!b)return a;const d=rank(b.tier)-rank(a.tier);if(d>0)return b;if(d<0)return a;return b.gems>a.gems?b:a}
 function quests(){if(!S.qd||S.qd.day!==today()){const keys=Object.keys(QPOOL);let h=0;for(const c of today()+S.id)h=(h*31+c.charCodeAt(0))>>>0;const pick=[];while(pick.length<2){const k=keys[h%keys.length];if(!pick.includes(k))pick.push(k);h=(h*1103515245+12345)>>>0}S.qd={day:today(),ids:['xp',...pick],p:{},claimed:{},chest:false}}
   return S.qd.ids.map(id=>{const [ic,label,n]=id==='xp'?['⚡',`Earn ${S.goal} XP`,S.goal]:QPOOL[id];const v=id==='xp'?(S.xpLog[today()]||0):(S.qd.p[id]||0);return {id,ic,label,n,v:Math.min(v,n),done:v>=n}})}
+function chestReady(){const qs=quests(),L=S.qd.loot;if(S.qd.chest&&(!L||L.claimed))return false;if(L&&!L.claimed)return true;return qs.every(q=>q.done)}
+function ensureLoot(){quests();if(S.qd.loot)return S.qd.loot;if(S.qd.chest||!quests().every(q=>q.done))return null;const rng=mulberry((Date.now()^(S.id.length*997))>>>0||1);const roll=lootDraw(rng,0);S.qd.loot={tier:roll.tier,gems:roll.gems,used:0,claimed:false,seed:rng.seed()};save();return S.qd.loot}
+function rerollLoot(){const L=S.qd&&S.qd.loot;if(!L||L.claimed||L.used>=LOOT.rerolls)return {loot:L,kept:true};const rng=mulberry(L.seed>>>0||1);const nxt=lootDraw(rng,L.used+1);const best=lootKeep({tier:L.tier,gems:L.gems},nxt);const kept=best.tier===L.tier&&best.gems===L.gems;L.tier=best.tier;L.gems=best.gems;L.used++;L.seed=rng.seed();save();return {loot:L,kept}}
+function claimLoot(){const L=S.qd&&S.qd.loot;if(!L||L.claimed)return false;L.claimed=true;S.qd.chest=true;S.gems+=L.gems;const ok=save();if(!ok){L.claimed=false;S.qd.chest=false;S.gems-=L.gems;return false}sfx.coin();buzz(28);return true}
 function claimQuests(){const qs=quests();
-  qs.forEach(q=>{if(q.done&&!S.qd.claimed[q.id]){S.qd.claimed[q.id]=1;S.gems+=15;setTimeout(()=>{toast(`${q.ic} Quest complete: ${q.label} · +15 💎`);sfx.coin()},700)}});
-  if(!S.qd.chest&&qs.every(q=>q.done)){S.qd.chest=true;S.gems+=25;setTimeout(()=>{toast('🎁 All daily quests done! +25 💎');sfx.coin()},1600)}}
+  qs.forEach(q=>{if(q.done&&!S.qd.claimed[q.id]){S.qd.claimed[q.id]=1;S.gems+=15;setTimeout(()=>{toast(`${q.ic} Quest complete: ${q.label} · +15 💎`);sfx.coin()},700)}});}
 function settleRewards(){if(S.goalDay!==today()&&(S.xpLog[today()]||0)>=S.goal){S.goalDay=today();gems(10,'Daily goal reached')}claimQuests()}
 function qBump(m,n=1){quests();if(m!=='xp')S.qd.p[m]=(S.qd.p[m]||0)+n;claimQuests()}
-function questsHTML(){const qs=quests(),d=qs.filter(q=>q.done).length;return `<section class="quests"><div class="row"><b>Daily quests</b><span class="muted sm">${d}/3 · resets at midnight</span></div>${qs.map(q=>`<div class="quest ${q.done?'done':''}"><span class="qi">${q.done?'✅':q.ic}</span><div><div class="row"><span>${esc(q.label)}</span><small>${q.v}/${q.n}</small></div><div class="bar sm"><i style="width:${q.v/q.n*100}%"></i></div></div><span class="qr" title="Reward">💎15</span></div>`).join('')}<div class="chest ${S.qd.chest?'open':''}">${S.qd.chest?'🎁 Bonus chest opened: +25 💎':'🎁 Finish all 3 for a +25 💎 bonus chest'}</div></section>`}
+function chestLine(){const L=S.qd.loot;if(L&&L.claimed)return `<div class="chest open">🎁 ${L.tier} · ${L.gems} 💎</div>`;if(chestReady())return `<button type="button" class="btn openchest">${L?'Chest open':'Open chest'}</button>`;return `<div class="chest">🎁 All 3 quests open a chest</div>`}
+function questsHTML(){const qs=quests(),d=qs.filter(q=>q.done).length;return `<section class="quests"><div class="row"><b>Daily quests</b><span class="muted sm">${d}/3 · resets at midnight</span></div>${qs.map(q=>`<div class="quest ${q.done?'done':''}"><span class="qi">${q.done?'✅':q.ic}</span><div><div class="row"><span>${esc(q.label)}</span><small>${q.v}/${q.n}</small></div><div class="bar sm"><i style="width:${q.v/q.n*100}%"></i></div></div><span class="qr" title="Reward">💎15</span></div>`).join('')}${chestLine()}</section>`}
+let chestP;
+function loadChest(){if(window.CHEST)return Promise.resolve(window.CHEST);if(chestP)return chestP;chestP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='chest.js';s.onload=()=>{if(window.CHEST)res(window.CHEST);else{chestP=null;rej(new Error('chest'))}};s.onerror=()=>{s.remove();chestP=null;rej(new Error('chest'))};document.head.appendChild(s)});return chestP}
+function openLoot(){if(!ensureLoot())return;loadChest().then(C=>C.show()).catch(()=>toast('The chest could not open. Try again.'))}
 // ---------- badges ----------
 const BADGES=[
 ['first','🌱','First Steps','Finish your first lesson',()=>S.stats.lessons>=1],
@@ -359,14 +382,17 @@ const NAV=[['learn','📚','Learn'],['practice','🎯','Practice'],['interview',
 let cur='learn';
 function topbar(){const tight=S.streak>=100||S.gems>=1000;return `<header class="top${tight?' tight':''}"><button class="brand" data-go="learn" aria-label="ByteRyte home"><span class="logo">{ }</span>ByteRyte</button>
 <span class="stat" title="Day streak" aria-label="${S.streak} day streak">🔥 ${compact(S.streak)}</span><span class="stat" title="Gems" aria-label="${S.gems} gems">💎 ${compact(S.gems)}</span><span class="stat" title="${S.hearts<5&&nextHeart()?'Next heart in '+nextHeart():'Hearts full'}" aria-label="${S.hearts} hearts${S.hearts<5&&nextHeart()?', next in '+nextHeart():''}">❤️ ${S.hearts}</span>
-<button class="icon" id="mus" aria-pressed="${G.music?'true':'false'}" aria-label="Lofi music">${G.music?'🎵':'♫'}</button><button class="icon" data-go="settings" aria-label="Settings">⚙️</button></header>`}
+<button class="icon" id="courses" aria-haspopup="menu" aria-expanded="false" aria-label="Courses, ${esc(T(S.track).name)}">${T(S.track).icon}</button><button class="icon" id="mus" aria-pressed="${G.music?'true':'false'}" aria-label="Lofi music">${G.music?'🎵':'♫'}</button><button class="icon" data-go="settings" aria-label="Settings">⚙️</button></header>`}
 function rail(){const lv=level(),wk=[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[shiftDay(-i)]||0),0);
   return `<aside class="rail" aria-label="Your progress"><section class="rcard me"><span class="avatar${cleanPhoto(S.photo)?' has-photo':''}">${faceHTML(S)}</span><div><b>${esc(S.name)}</b><small>Level ${lv.L} · ${lv.into}/${lv.need} XP</small><div class="bar sm"><i style="width:${lv.into/lv.need*100}%"></i></div></div></section>
   <section class="rcard"><div class="sgrid s2"><div class="scard">🔥<b>${S.streak}</b>streak</div><div class="scard">⚡<b>${wk}</b>XP this week</div></div></section>${questsHTML()}
   <section class="rcard promo"><b>💼 Interview coming up?</b><small>Run a timed mock screen and get a hire/no-hire scorecard.</small><button class="btn sm" data-go="interview">Practice now</button></section></aside>`}
 function shell(inner,{nav=true}={}){regen();document.querySelectorAll('.conf').forEach(c=>c.remove());app.className=nav?'withnav':'';app.innerHTML=topbar()+`<main id="main" class="fade">${/<h1[\s>]/.test(inner)?'':`<h1 class="sr">ByteRyte · ${({learn:'Learn path',practice:'Practice',interview:'Mock interview',shop:'Gem shop',profile:'Profile',settings:'Settings'})[cur]||'Home'}</h1>`}${inner}</main>`+(nav?rail():'')+(nav?`<nav class="bnav" aria-label="Main">${NAV.map(([id,ic,l])=>`<button data-go="${id}" class="${cur===id?'on':''}" ${cur===id?'aria-current="page"':''}><span aria-hidden="true">${ic}</span>${l}</button>`).join('')}</nav>`:'');
-  $$('[data-go]').forEach(b=>b.onclick=()=>{if(!once(b))return;go(b.dataset.go)});const mb=$('#mus');if(mb){armAudio(mb);mb.onclick=()=>{if(!once(mb))return;toggleMusic()}}window.scrollTo(0,0)}
-function show(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,settings}[v]||home)()}
+  $$('[data-go]').forEach(b=>b.onclick=()=>{if(!once(b))return;go(b.dataset.go)});const mb=$('#mus');if(mb){armAudio(mb);mb.onclick=()=>{if(!once(mb))return;toggleMusic()}}
+  const cb=$('#courses');if(cb)cb.onclick=()=>toggleCourses(cb);
+  $$('.openchest').forEach(b=>b.onclick=()=>{if(!once(b))return;openLoot()});
+  window.scrollTo(0,0)}
+function show(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,settings,courses:()=>coursePick('first')}[v]||home)()}
 let histLock=false,navLock=false;
 function histPush(state){
   if(histLock)return;
@@ -385,6 +411,7 @@ function restore(s){
   if(!s||s.br!==1){show('learn');return}
   if(s.screen==='guide'){const t=T(s.track);if(t&&t.units[+s.ui||0])return guide(t,+s.ui||0);return show('learn')}
   if(s.screen==='recap')return recap();
+  if(s.screen==='courses')return coursePick('first');
   if(s.screen==='edit')return editProfile(!!s.fresh);
   if(s.screen==='session'){try{history.replaceState({br:1,screen:s.back||'learn'},'')}catch(e){}return show(s.back||'learn')}
   if(s.screen==='hearts')return outOfHearts();
@@ -400,7 +427,7 @@ function onPop(ev){
 }
 function armHistory(){
   try{
-    const screen=S&&S.onboarded?'learn':'edit';
+    const screen=needsCourses(S)?'courses':S&&S.onboarded?'learn':'edit';
     const state={br:1,screen};if(screen==='edit')state.fresh=true;
     history.replaceState({br:0,screen:'sentinel'},'');
     history.pushState(state,'');
@@ -411,7 +438,7 @@ function quizBlocks(t,ui){if(!t||S.unlockAll)return false;for(let i=0;i<ui;i++){
 function home(){
   cur='learn';daily();const t=T(S.track),ls=lessons(t),locked=t.parent&&!trackOpen(t),firstOpen=ls.findIndex(x=>!S.done[x.key]),gp=Math.min(100,(S.xpLog[today()]||0)/S.goal*100);
   let h=`<section class="goalcard"><div class="row"><b>Daily goal</b><span>${S.xpLog[today()]||0} / ${S.goal} XP</span></div><div class="bar"><i style="width:${gp}%"></i></div>${S.last===yday()&&!(S.xpLog[today()])?`<div class="pill warn">🔥 Keep your ${S.streak}-day streak alive — do one lesson today!</div>`:''}${S.freezes?`<div class="pill">🧊 ${S.freezes} streak freeze${S.freezes>1?'s':''} ready</div>`:''}${dblOn()?`<div class="pill">⚡ Double XP active · ${Math.ceil((S.doubleUntil-Date.now())/60000)} min left</div>`:''}</section>
-  <button class="qchip" data-go="practice">🗓 Daily quests <b>${quests().filter(q=>q.done).length}/3</b><span>›</span></button>
+  ${chestReady()?`<button type="button" class="qchip openchest">🎁 ${S.qd.loot?'Chest open':'Open chest'} <b>3/3</b></button>`:`<button class="qchip" data-go="practice">🗓 Daily quests <b>${quests().filter(q=>q.done).length}/3</b><span>›</span></button>`}
   <div class="tabs" role="tablist">`;
   TRACKS.forEach(x=>{const d=lessons(x).filter(y=>S.done[y.key]).length,n=lessons(x).length;
     h+=`<button role="tab" aria-selected="${x.id===S.track}" class="tab ${x.id===S.track?'on':''}" data-t="${x.id}" style="--c:${x.color}">${x.icon} ${x.name}<small>${x.primary?'Main path':x.parent?'↳ Java branch':'Secondary'} · ${d}/${n}</small></button>`});
@@ -497,7 +524,7 @@ function shop(){cur='shop';daily();
   shell(`<h1 class="h1">Gem Shop</h1><div class="wallet" aria-label="${S.gems} gems"><span>💎</span><div><b>${compact(S.gems)}</b><small>gems · earned from lessons, goals, streaks and interviews. Just for fun: no real money involved.</small></div></div>
   <div class="inv">Your stuff: ✂️ ${S.inv.fifty||0} · ⏭️ ${S.inv.skip||0} · 🧊 ${S.freezes}/2 ${dblOn()?'· ⚡ active':''}</div>
   ${ITEMS.map(([id,ic,n,d,c,ok])=>{const ready=ok()&&S.gems>=c;const label=!ok()?(id==='hearts'?'Full':'Max'):S.gems<c?`Need ${c-S.gems}`:`💎 ${c}`;return `<div class="sitem"><span class="pic">${ic}</span><div><b>${n}</b><small>${d}</small></div><button class="btn sm buy" data-id="${id}" ${ready?'':'disabled'} aria-label="${esc(n)}: ${label}">${label}</button></div>`}).join('')}
-  <h2 class="h2">How to earn gems</h2><ul class="muted earn"><li>Finish a lesson: +5 (perfect lesson: +10)</li><li>Pass a unit check the first time: +5</li><li>Hit your daily goal: +10</li><li>Every 7-day streak: +20</li><li>Level up: +20</li><li>Daily quest: +15</li><li>All 3 quests: +25</li><li>Mock interview: +2 per correct answer</li><li>Speed challenge: +1 per correct answer</li></ul>`);
+  <h2 class="h2">How to earn gems</h2><ul class="muted earn"><li>Finish a lesson: +5 (perfect lesson: +10)</li><li>Pass a unit check the first time: +5</li><li>Hit your daily goal: +10</li><li>Every 7-day streak: +20</li><li>Level up: +20</li><li>Daily quest: +15</li><li>All 3 quests: a gem chest (10 to 120)</li><li>Mock interview: +2 per correct answer</li><li>Speed challenge: +1 per correct answer</li></ul>`);
   $$('.buy').forEach(b=>b.onclick=()=>{const it=ITEMS.find(x=>x[0]===b.dataset.id);const now=Date.now();if(!it||S.gems<it[4]||!it[5]()||now-(buyAt[it[0]]||0)<400)return;buyAt[it[0]]=now;S.gems-=it[4];it[6]();S.stats.bought=(S.stats.bought||0)+1;sfx.coin();buzz(20);toast(`${it[1]} ${it[2]} purchased!`);checkBadges();save();shop()})}
 // ---------- profile ----------
 const buyAt={},tapLock={};let addLock=false;
@@ -558,7 +585,13 @@ function editProfile(isNew){let av=S.avatar,photo=S.photo||'';histPush({screen:'
   $('#pl')&&($('#pl').onclick=()=>{if(!once($('#pl')))return;if(!commit())return;try{history.replaceState({br:1,screen:'learn'},'')}catch(e){}cur='learn';const pool=[];lessons(T('java')).filter(x=>DRILL.includes(x.key)).forEach(x=>{const e=x.l.ex.filter(e=>e.t!=='ar');pool.push(...shuffle(e).slice(0,2).map((e)=>({e,k:x.key+'~'+x.l.ex.indexOf(e)})))});start(pool,{name:'Placement test',mode:'placement'})});
   $('#del')&&($('#del').onclick=()=>{if(!once($('#del')))return;if(!confirm(`Delete ${S.name}'s profile? This cannot be undone.`))return;delete P.list[S.id];P.active=Object.keys(P.list)[0];S=P.list[P.active];save();land('learn')});
 }
-const onboard=()=>editProfile(true);
+function needsCourses(p){return !!(p&&!p.onboarded&&!(p.xp>0)&&!(p.stats&&p.stats.lessons)&&!Object.keys(p.done||{}).length&&!(p.courses&&p.courses.length))}
+function adoptCourse(id,active){if(!S.courses)S.courses=[];if(!S.courses.includes(id))S.courses.push(id);const t=T(id);if(t&&t.parent){S.gates=S.gates||{};S.gates[id]=true}if(active)S.track=id}
+let courseP;
+function loadCourses(){if(window.COURSES_UI)return Promise.resolve(window.COURSES_UI);if(courseP)return courseP;courseP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='courses.js';s.onload=()=>{if(window.COURSES_UI)res(window.COURSES_UI);else{courseP=null;rej(new Error('courses'))}};s.onerror=()=>{s.remove();courseP=null;rej(new Error('courses'))};document.head.appendChild(s)});return courseP}
+function coursePick(mode){loadCourses().then(U=>U.pick(mode)).catch(()=>editProfile(true))}
+function toggleCourses(b){loadCourses().then(U=>U.menu(b)).catch(()=>{})}
+const onboard=()=>needsCourses(S)?coursePick('first'):editProfile(true);
 // ---------- settings ----------
 function settings(){cur='settings';daily();
   const many=Object.keys(P.list).length>1;
@@ -804,5 +837,5 @@ addEventListener('storage',e=>{
   finally{syncing=false}
 });
 if('serviceWorker' in navigator){let had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had){had=true;return}try{if(sessionStorage.getItem('byteryte-sw-reload')==='1')return;sessionStorage.setItem('byteryte-sw-reload','1')}catch(e){}location.reload()})}
-window.__BR={get S(){return S},P:()=>P,cur:()=>R&&R.q[0]&&R.q[0].e,aud:()=>({state:AC?AC.state:'none',music:!!G.music,musicGain:musG?musG.gain.value:0,sfxGain:sfxG?sfxG.gain.value:0,musicDest:!!musWired,sfxDest:!!sfxWired,silent:!!(silEl&&!silEl.paused),session:(navigator.audioSession&&navigator.audioSession.type)||'',sfxVol:G.sfxVol,musicVol:G.musicVol,sound:!!G.sound,text:G.text,accent:G.accent})};
+window.__BR={get S(){return S},P:()=>P,cur:()=>R&&R.q[0]&&R.q[0].e,aud:()=>({state:AC?AC.state:'none',music:!!G.music,musicGain:musG?musG.gain.value:0,sfxGain:sfxG?sfxG.gain.value:0,musicDest:!!musWired,sfxDest:!!sfxWired,silent:!!(silEl&&!silEl.paused),session:(navigator.audioSession&&navigator.audioSession.type)||'',sfxVol:G.sfxVol,musicVol:G.musicVol,sound:!!G.sound,text:G.text,accent:G.accent}),loot:{odds:lootOdds,draw:lootDraw,keep:(a,b)=>lootKeep(a,b),rng:mulberry,tiers:LOOT.tiers.map(t=>({id:t.id,gems:t.gems.slice()}))},chest:{reroll:rerollLoot,claim:claimLoot},fx:()=>{sfx.coin();buzz(12)},courseUi:{esc,q:$,qq:$$,once,T,adopt:adoptCourse,save,land,edit:()=>editProfile(true),toast,needs:()=>needsCourses(S),app:()=>app,S:()=>S,hist:histPush,cur:v=>{cur=v},home}};
 })();

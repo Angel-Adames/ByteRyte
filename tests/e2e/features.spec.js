@@ -1,5 +1,5 @@
 import { test, expect } from './console.js';
-import { boot, answerSession, state, isDeep, overflow, themeOf } from './helpers.js';
+import { boot, answerSession, state, isDeep, overflow, themeOf, passCoursePick } from './helpers.js';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
@@ -203,6 +203,7 @@ deep('replaying a lesson does not inflate the lesson count', async ({ page, test
 
 deep('placement opens HTML and CSS only', async ({ page, testInfo }) => {
   await boot(page, testInfo, { profile: { onboarded: false, name: 'Ada' } });
+  await passCoursePick(page);
   await expect(page.getByRole('button', { name: /Take placement test/ })).toBeVisible();
   await page.getByRole('button', { name: /Take placement test/ }).click();
   await answerSession(page);
@@ -304,6 +305,7 @@ deep('profiles can be created, switched, and deleted', async ({ page, testInfo }
   await boot(page, testInfo);
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
   await page.getByRole('button', { name: 'Add profile' }).click();
+  await passCoursePick(page);
   await page.locator('#nm').fill('Sam');
   await page.getByRole('button', { name: 'Start from scratch' }).click();
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
@@ -356,6 +358,7 @@ deep('export and import round-trip, including the same file twice', async ({ pag
 deep('corrupt storage boots instead of hanging', async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem('byteroots-profiles', '{'));
   await page.goto('./');
+  await passCoursePick(page);
   await expect(page.getByRole('button', { name: 'Start from scratch' })).toBeVisible();
 });
 
