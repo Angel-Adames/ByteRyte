@@ -19,6 +19,7 @@ if(!P||typeof P!=='object'||Array.isArray(P)){P={active:null,list:{}};const old=
     if(old.last){const d=new Date(old.last);if(!isNaN(d))p.last=iso(d)}p.best=p.streak;P.list[p.id]=p;P.active=p.id}}
 let S;
 function finite(v,d,min,max){const n=Number(v);if(!Number.isFinite(n))return d;let x=n;if(min!=null&&x<min)x=min;if(max!=null&&x>max)x=max;return x}
+function cleanPhoto(v){if(typeof v!=='string'||v.length<32||v.length>100000)return '';return /^data:image\/jpeg;base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(v)?v:''}
 function sanitize(p){
   p.xp=Math.round(finite(p.xp,0,0,1e9));
   p.streak=Math.round(finite(p.streak,0,0,1e5));
@@ -32,6 +33,7 @@ function sanitize(p){
   if(p.heartAt==null||!Number.isFinite(Number(p.heartAt)))p.heartAt=null;else p.heartAt=Number(p.heartAt);
   p.name=String(p.name==null?'Learner':p.name).replace(/[\u0000-\u001f]/g,'').trim().slice(0,24)||'Learner';
   p.avatar=String(p.avatar==null?'🦊':p.avatar).replace(/[\u0000-\u001f]/g,'').slice(0,32)||'🦊';
+  p.photo=cleanPhoto(p.photo);
   if(!Number.isFinite(Number(p.created)))p.created=Date.now();else p.created=Number(p.created);
   p.gen=Math.round(finite(p.gen,0,0,1e9));
   p.inv=p.inv&&typeof p.inv==='object'?p.inv:{};
@@ -105,7 +107,7 @@ const econBases={};
 function econSnap(p){return {gems:p.gems,hearts:p.hearts,freezes:p.freezes||0,fifty:(p.inv&&p.inv.fifty)||0,skip:(p.inv&&p.inv.skip)||0,doubleUntil:p.doubleUntil||0,goal:p.goal,goalDay:p.goalDay??null,heartAt:p.heartAt??null,heartDay:p.heartDay??null,bought:(p.stats&&p.stats.bought)||0}}
 const progBases={};
 function copyMap(o){const out={};if(o&&typeof o==='object'&&!Array.isArray(o))Object.keys(o).forEach(k=>{if(k==='__proto__'||k==='constructor'||k==='prototype')return;out[k]=o[k]});return out}
-function progSnap(p){const st=p.stats||{},q=p.qd&&typeof p.qd==='object'?p.qd:{};return {xp:p.xp||0,streak:p.streak||0,best:p.best||0,last:p.last??null,lessons:st.lessons||0,perfect:st.perfect||0,xpLog:copyMap(p.xpLog),done:copyMap(p.done),misses:copyMap(p.misses),badges:copyMap(p.badges),review:copyMap(p.review),qday:q.day||null,qp:copyMap(q.p),qclaimed:copyMap(q.claimed),qchest:!!q.chest,gen:p.gen||0}}
+function progSnap(p){const st=p.stats||{},q=p.qd&&typeof p.qd==='object'?p.qd:{};return {xp:p.xp||0,streak:p.streak||0,best:p.best||0,last:p.last??null,lessons:st.lessons||0,perfect:st.perfect||0,xpLog:copyMap(p.xpLog),done:copyMap(p.done),misses:copyMap(p.misses),badges:copyMap(p.badges),review:copyMap(p.review),qday:q.day||null,qp:copyMap(q.p),qclaimed:copyMap(q.claimed),qchest:!!q.chest,gen:p.gen||0,photo:p.photo||''}}
 function rememberEcon(p){if(p&&p.id){econBases[p.id]=econSnap(p);progBases[p.id]=progSnap(p)}}
 function rememberAll(){Object.keys(econBases).forEach(k=>delete econBases[k]);Object.keys(progBases).forEach(k=>delete progBases[k]);Object.values(P.list||{}).forEach(rememberEcon)}
 function mergeEcon(mine,remote,base){
@@ -188,6 +190,7 @@ function mergeProg(mine,remote,base){
     if(remote.qd.chest||base.qchest)mine.qd.chest=true;
   }
   mine.gen=Math.max(mine.gen||0,remote.gen||0);
+  if((mine.photo||'')===(base.photo||''))mine.photo=remote.photo||'';
   sanitize(mine);
 }
 hydrate();
@@ -326,6 +329,7 @@ const BADGES=[
 ['curator','★','Curator','Save 3 questions to revisit',()=>Object.keys(S.saved||{}).length>=3,()=>[Object.keys(S.saved||{}).length,3]],
 ['speed','🏎️','Speed Demon','Get 15+ right in a speed challenge',()=>(S.stats.bestChal||0)>=15,()=>[S.stats.bestChal||0,15]]];
 function checkBadges(){BADGES.forEach(([id,ic,n,,f])=>{if(!S.badges[id]&&f()){S.badges[id]=Date.now();setTimeout(()=>{toast(`${ic} Badge unlocked: ${n}`);sfx.coin()},400)}});save()}
+function faceHTML(p){const src=p&&cleanPhoto(p.photo);if(src)return `<img class="avimg" alt="" src="${src}">`;return esc(p&&p.avatar||'🦊')}
 // ---------- shell ----------
 const NAV=[['learn','📚','Learn'],['practice','🎯','Practice'],['interview','💼','Interview'],['shop','💎','Shop'],['profile','👤','Profile']];
 let cur='learn';
@@ -333,7 +337,7 @@ function topbar(){const tight=S.streak>=100||S.gems>=1000;return `<header class=
 <span class="stat" title="Day streak" aria-label="${S.streak} day streak">🔥 ${compact(S.streak)}</span><span class="stat" title="Gems" aria-label="${S.gems} gems">💎 ${compact(S.gems)}</span><span class="stat" title="${S.hearts<5&&nextHeart()?'Next heart in '+nextHeart():'Hearts full'}" aria-label="${S.hearts} hearts${S.hearts<5&&nextHeart()?', next in '+nextHeart():''}">❤️ ${S.hearts}</span>
 <button class="icon" data-go="settings" aria-label="Settings">⚙️</button></header>`}
 function rail(){const lv=level(),wk=[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[shiftDay(-i)]||0),0);
-  return `<aside class="rail" aria-label="Your progress"><section class="rcard me"><span class="avatar">${esc(S.avatar)}</span><div><b>${esc(S.name)}</b><small>Level ${lv.L} · ${lv.into}/${lv.need} XP</small><div class="bar sm"><i style="width:${lv.into/lv.need*100}%"></i></div></div></section>
+  return `<aside class="rail" aria-label="Your progress"><section class="rcard me"><span class="avatar${cleanPhoto(S.photo)?' has-photo':''}">${faceHTML(S)}</span><div><b>${esc(S.name)}</b><small>Level ${lv.L} · ${lv.into}/${lv.need} XP</small><div class="bar sm"><i style="width:${lv.into/lv.need*100}%"></i></div></div></section>
   <section class="rcard"><div class="sgrid s2"><div class="scard">🔥<b>${S.streak}</b>streak</div><div class="scard">⚡<b>${wk}</b>XP this week</div></div></section>${questsHTML()}
   <section class="rcard promo"><b>💼 Interview coming up?</b><small>Run a timed mock screen and get a hire/no-hire scorecard.</small><button class="btn sm" data-go="interview">Practice now</button></section></aside>`}
 function shell(inner,{nav=true}={}){regen();document.querySelectorAll('.conf').forEach(c=>c.remove());app.className=nav?'withnav':'';app.innerHTML=topbar()+`<main id="main" class="fade">${/<h1[\s>]/.test(inner)?'':`<h1 class="sr">ByteRyte · ${({learn:'Learn path',practice:'Practice',interview:'Mock interview',shop:'Gem shop',profile:'Profile',settings:'Settings'})[cur]||'Home'}</h1>`}${inner}</main>`+(nav?rail():'')+(nav?`<nav class="bnav" aria-label="Main">${NAV.map(([id,ic,l])=>`<button data-go="${id}" class="${cur===id?'on':''}" ${cur===id?'aria-current="page"':''}><span aria-hidden="true">${ic}</span>${l}</button>`).join('')}</nav>`:'');
@@ -393,9 +397,9 @@ function home(){
     h+=`<div class="unit" style="--c:${t.color}"><div>${esc(u.name)}<small>${ud}/${u.lessons.length} lessons complete</small></div><div class="uright"><button class="guide" data-u="${ui}" aria-label="📖 Guide, ${esc(u.name)}">📖 Guide</button><div class="ring" style="--p:${ud/u.lessons.length*100}" aria-hidden="true"></div></div></div><div class="path" style="--c:${t.color}">`;
     u.lessons.forEach((l,li)=>{const i=ls.findIndex(x=>x.ui===ui&&x.li===li),k=ls[i].key,open=!locked&&(S.done[k]||(!blocked&&(S.unlockAll||i<=firstOpen||firstOpen<0))),isCur=open&&!S.done[k]&&i===firstOpen&&!blocked;
       const off=[0,48,68,48,0,-48,-68,-48][i%8];
-      h+=`<div class="nodewrap ${isCur?'hascur':''}" style="--x:${off}px">${isCur?'<div class="startbub">START</div>':''}<button class="node ${open?'':'lock'} ${S.done[k]?'done':''} ${isCur?'cur':''}" style="--c:${t.color}" data-k="${esc(k)}" ${open?'':'disabled'} aria-label="${esc(l.name)}${S.done[k]?' (complete)':open?'':' (locked)'}">${S.done[k]?'★':open?t.icon:'🔒'}</button><div class="nlab">${esc(l.name)}</div></div>`});
+      h+=`<div class="nodewrap ${isCur?'hascur':''} side-r" style="--x:${off}px"><div class="noderow">${isCur?'<div class="startbub">START</div>':''}<button class="node ${open?'':'lock'} ${S.done[k]?'done':''} ${isCur?'cur':''}" style="--c:${t.color}" data-k="${esc(k)}" ${open?'':'disabled'} aria-label="${esc(l.name)}${S.done[k]?' (complete)':open?'':' (locked)'}">${S.done[k]?'★':open?t.icon:'🔒'}</button><div class="nlab">${esc(l.name)}</div></div></div>`});
     if(u.quiz){const q=u.quiz,lessonsDone=u.lessons.every(l=>S.done[l.id]),qOpen=!locked&&(S.unlockAll||(lessonsDone&&!blocked)),qDone=!!S.done[q.id],qCur=qOpen&&!qDone&&lessonsDone&&!blocked,off=[0,48,68,48,0,-48,-68,-48][u.lessons.length%8];
-      h+=`<div class="nodewrap ${qCur?'hascur':''}" style="--x:${off}px">${qCur?'<div class="startbub">START</div>':''}<button class="node ${qOpen?'':'lock'} ${qDone?'done':''} ${qCur?'cur':''}" style="--c:${t.color}" data-quiz="1" data-ui="${ui}" ${qOpen?'':'disabled'} aria-label="Unit check${qDone?' (complete)':qOpen?'':' (locked)'}">${qDone?'★':qOpen?'✓':'🔒'}</button><div class="nlab">Unit check</div></div>`}
+      h+=`<div class="nodewrap ${qCur?'hascur':''} side-r" style="--x:${off}px"><div class="noderow">${qCur?'<div class="startbub">START</div>':''}<button class="node ${qOpen?'':'lock'} ${qDone?'done':''} ${qCur?'cur':''}" style="--c:${t.color}" data-quiz="1" data-ui="${ui}" ${qOpen?'':'disabled'} aria-label="Unit check${qDone?' (complete)':qOpen?'':' (locked)'}">${qDone?'★':qOpen?'✓':'🔒'}</button><div class="nlab">Unit check</div></div></div>`}
     h+=`</div>`});
   if(t.id==='java')h+=`<div class="branchbox">🌿 <b>HTML &amp; CSS</b> ${trackOpen(T('css'))?'is open.':'opens after types through arrays.'} <b>JavaFX</b> (OpenJFX 21+, not part of the JDK) ${trackOpen(T('javafx'))?'is open.':'opens after object-oriented Java.'} Switch tabs above once a branch is open.</div>`;
   h+=`<p class="note">Java print answers were run on JDK 21. Swift print answers and Swift Essentials typed answers were run on Swift 6.0.3. Concepts checked against Oracle, OpenJFX, MDN, and Swift.org. Gems stay in the app.</p>`;
@@ -404,11 +408,33 @@ function home(){
   $$('.node:not(.lock)').forEach(b=>b.onclick=()=>{if(!once(b))return;if(b.dataset.quiz){const u=t.units[+b.dataset.ui],q=u.quiz;start(q.ex.map((e,i)=>({e,k:`${q.id}~${i}`})),{key:q.id,name:q.name,mode:'quiz',pass:q.pass});return}const L=lessonOf(b.dataset.k);start(L.ex.map((e,i)=>({e,k:`${b.dataset.k}~${i}`})),{key:b.dataset.k,name:L.name,tip:L.tip,sheet:L.sheet,mode:'lesson'})});
   $$('.guide').forEach(b=>b.onclick=()=>{if(!once(b))return;guide(t,+b.dataset.u)});
   $('.node.cur')?.scrollIntoView({block:'center'});
+  scheduleSpines();
 }
 function guide(t,ui){daily();histPush({screen:'guide',track:t.id,ui});const u=t.units[ui];
   shell(`<button class="link" id="bk">‹ Back to path</button><h1 class="h1">📖 ${esc(u.name)}</h1><p class="muted">Key ideas for every lesson in this unit — read before you start, or come back to refresh.</p>
   ${u.lessons.map(l=>{const ex=l.ex.find(e=>e.t==='out'&&e.code.split('\n').length<=4);return `<article class="gcard" style="--c:${t.color}"><h2>${t.icon} ${esc(l.name)} ${S.done[l.id]?'<span class="tag">✓ done</span>':''}</h2><p>${esc(l.tip)}</p>${sheetHTML(l.sheet)}${docLink(DOCS[l.name])}${ex?`<div class="gex"><small>Example</small><pre class="code sm" tabindex="0">${hl(ex.code)}</pre><small>Prints: <code>${esc(ex.opts[ex.a])}</code></small></div>`:''}</article>`}).join('')}`);
   $('#bk').onclick=()=>{if(!once($('#bk')))return;navBack(home)}}
+function drawSpines(){
+  document.querySelectorAll('.path').forEach(path=>{
+    const nodes=path.querySelectorAll('.node');
+    let c=path.querySelector('canvas.spine');
+    if(nodes.length<2||!path.offsetWidth){if(c)c.remove();return}
+    const w=path.offsetWidth,h=path.offsetHeight,dpr=Math.min(2,window.devicePixelRatio||1);
+    if(!c){c=document.createElement('canvas');c.className='spine';c.setAttribute('aria-hidden','true');path.appendChild(c)}
+    c.width=Math.round(w*dpr);c.height=Math.round(h*dpr);c.style.width=w+'px';c.style.height=h+'px';
+    const box=path.getBoundingClientRect(),z=box.width/w||1,pts=[];
+    const g=c.getContext('2d');g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,w,h);
+    g.lineWidth=5;g.lineCap='round';g.lineJoin='round';g.strokeStyle=getComputedStyle(c).color;
+    g.beginPath();
+    nodes.forEach((n,i)=>{const r=n.getBoundingClientRect();const x=(r.left+r.width/2-box.left)/z,y=(r.top+r.height/2-box.top)/z;pts.push(x.toFixed(1),y.toFixed(1));if(i)g.lineTo(x,y);else g.moveTo(x,y)});
+    g.stroke();
+    c.dataset.pts=pts.join(' ');
+  });
+}
+let spineFrame=0;
+function scheduleSpines(){cancelAnimationFrame(spineFrame);spineFrame=requestAnimationFrame(drawSpines)}
+addEventListener('resize',scheduleSpines);
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(scheduleSpines);
 // ---------- practice ----------
 function practice(){cur='practice';daily();const dn=due().length;
   const weak=Object.entries(S.misses).filter(([k])=>lessonOf(k)).sort((a,b)=>b[1]-a[1]).slice(0,4);
@@ -457,7 +483,7 @@ function profile(){cur='profile';daily();
   const dow=new Date().getDay(),cal=[...Array(35)].map((_,i)=>{const off=dow+28-i;return off<0?null:shiftDay(-off)}).slice(0);const lv=level();
   const acc=S.stats.answered?Math.round(S.stats.correct/S.stats.answered*100):0;
   const others=Object.values(P.list).filter(p=>p.id!==S.id);
-  shell(`<section class="phead"><button class="avatar big" id="edit" aria-label="Change ${esc(S.name)}'s avatar">${esc(S.avatar)}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small><br><button class="link" id="edit2">Edit profile</button></div></section>
+  shell(`<section class="phead"><button class="avatar big${cleanPhoto(S.photo)?' has-photo':''}" id="edit" aria-label="Change ${esc(S.name)}'s avatar">${faceHTML(S)}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small><br><button class="link" id="edit2">Edit profile</button></div></section>
   <div class="lvl"><div class="row"><b>Level ${lv.L}</b><small class="muted">${lv.need-lv.into} XP to level ${lv.L+1}</small></div><div class="bar"><i style="width:${lv.into/lv.need*100}%"></i></div></div>
   <div class="sgrid"><div class="scard">🔥<b>${S.streak}</b>Day streak</div><div class="scard">🏆<b>${S.best}</b>Best streak</div><div class="scard">⚡<b>${S.xp}</b>Total XP</div><div class="scard">💎<b>${S.gems}</b>Gems</div><div class="scard">📚<b>${S.stats.lessons}</b>Lessons</div><div class="scard">🎯<b>${acc}%</b>Accuracy</div></div>
   <button class="pcard" id="recap"><span class="pic">📅</span><span><b>Weekly recap</b><small>Your last 7 days at a glance</small></span></button>
@@ -465,7 +491,7 @@ function profile(){cur='profile';daily();
   <div class="league"><b>Weekly league: you vs. last week</b><div class="row"><span>This week</span><b>${tw} XP</b></div><div class="row"><span>Last week</span><b>${lw} XP</b></div><div class="pill ${tw>=lw?'up':''}">${tw>lw?'📈 Promoted pace! Beat last week by '+(tw-lw)+' XP':tw===lw?'Tied with last week':'📉 '+(lw-tw)+' XP to beat last week'}</div></div>
   <h2 class="h2">Streak calendar</h2><div class="cal" role="img" aria-label="Activity calendar, last 5 weeks, Sunday through Saturday">${['Su','Mo','Tu','We','Th','Fr','Sa'].map(x=>`<span>${x}</span>`).join('')}${cal.map(d=>{if(!d)return '<i class="fut"></i>';const v=S.xpLog[d]||0;return `<i title="${d}: ${v} XP" class="l${v?v>=S.goal?3:v>=S.goal/2?2:1:0} ${d===today()?'today':''}"></i>`}).join('')}</div><div class="legend">Less <i class="l0"></i><i class="l1"></i><i class="l2"></i><i class="l3"></i> More · goal met = darkest</div>
   <h2 class="h2">Achievements · ${Object.keys(S.badges).length}/${BADGES.length}</h2><div class="badges" role="list">${BADGES.map(([id,ic,n,d,,pr])=>{const got=S.badges[id],pv=!got&&pr?pr():null;return `<div class="badge ${got?'got':''}" role="listitem" aria-label="${esc(n)}: ${esc(d)}. ${got?'Unlocked':'Locked'+(pv?`, ${Math.min(pv[0],pv[1])} of ${pv[1]}`:'')}"><span aria-hidden="true">${got?ic:'🔒'}</span><b>${n}</b><small>${d}</small>${got?`<small class="bdate">✓ ${got>1e12?new Date(got).toLocaleDateString(undefined,{month:'short',day:'numeric'}):'Unlocked'}</small>`:pv?`<div class="bprog" aria-hidden="true"><i style="width:${Math.min(100,pv[0]/pv[1]*100)}%"></i></div><small class="bdate">${Math.min(pv[0],pv[1])}/${pv[1]}</small>`:''}</div>`}).join('')}</div>
-  <h2 class="h2">Profiles on this device</h2>${others.map(p=>`<div class="sitem"><span class="pic">${esc(p.avatar)}</span><div><b>${esc(p.name)}</b><small>${p.xp} XP · 🔥 ${p.streak}</small></div><button class="btn sm alt sw" data-id="${esc(p.id)}" aria-label="Switch to ${esc(p.name)}">Switch</button></div>`).join('')}
+  <h2 class="h2">Profiles on this device</h2>${others.map(p=>`<div class="sitem"><span class="pic${cleanPhoto(p.photo)?' has-photo':''}">${faceHTML(p)}</span><div><b>${esc(p.name)}</b><small>${p.xp} XP · 🔥 ${p.streak}</small></div><button class="btn sm alt sw" data-id="${esc(p.id)}" aria-label="Switch to ${esc(p.name)}">Switch</button></div>`).join('')}
   <button class="btn alt" id="addp">＋ Add profile</button>`);
   $('#edit').onclick=$('#edit2').onclick=()=>{if(!once($('#edit2')))return;editProfile(false)};$('#recap').onclick=()=>{if(!once($('#recap')))return;recap()};
   $('#addp').onclick=()=>{if(addLock)return;addLock=true;queueMicrotask(()=>{addLock=false});const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p;save();onboard()};
@@ -483,19 +509,28 @@ function recap(){cur='profile';daily();histPush({screen:'recap'});
   <h2 class="h2">Highlights</h2><ul class="hl">${tw?`<li>🌟 Best day: <b>${new Date(best+'T12:00').toLocaleDateString(undefined,{weekday:'long'})}</b> with ${xp(best)} XP</li>`:''}${nb.map(([,ic,n])=>`<li>${ic} Unlocked <b>${n}</b></li>`).join('')}<li>${tw>=lw?'📈':'📉'} Last week: ${lw} XP</li>${weak?`<li>🎯 Most-missed topic: <b>${esc(lessonOf(weak[0]).name)}</b></li>`:''}</ul>
   <h2 class="h2">Next week</h2>${dn?`<button class="pcard" id="rr"><span class="pic">🔁</span><span><b>Clear your review queue</b><small>${plural(dn,'question')} due</small></span></button>`:'<div class="empty"><span aria-hidden="true">✅</span><p>No review is waiting. A missed question will land here when it is due.</p></div>'}<button class="pcard" id="gl"><span class="pic">🌱</span><span><b>Continue learning</b><small>Pick up where you left off</small></span></button>`);
   $('#bk').onclick=()=>{if(!once($('#bk')))return;navBack(profile)};$('#gl').onclick=()=>{if(!once($('#gl')))return;go('learn')};$('#rr')&&($('#rr').onclick=()=>{if(!once($('#rr')))return;go('practice')})}
-function editProfile(isNew){let av=S.avatar;histPush({screen:'edit',fresh:!!isNew});
+function cropSquare(src){const w=src.width,h=src.height;if(!w||!h)throw new Error('empty');const side=Math.min(w,h),c=document.createElement('canvas');c.width=c.height=256;c.getContext('2d').drawImage(src,(w-side)/2,(h-side)/2,side,side,0,0,256,256);let q=.72,url=c.toDataURL('image/jpeg',q);while(url.length>80000&&q>.45){q-=.08;url=c.toDataURL('image/jpeg',q)}if(!cleanPhoto(url))throw new Error('encode');return url}
+function decodeFile(file){if(typeof createImageBitmap==='function')return createImageBitmap(file);return new Promise((res,rej)=>{const url=URL.createObjectURL(file),img=new Image();img.onload=()=>{URL.revokeObjectURL(url);res(img)};img.onerror=()=>{URL.revokeObjectURL(url);rej(new Error('decode'))};img.src=url})}
+function photoError(file){const type=(file.type||'').toLowerCase(),name=(file.name||'').toLowerCase();if(type.includes('heic')||type.includes('heif')||/\.hei[cf]$/.test(name))return 'This browser cannot read HEIC photos. Save a JPEG or PNG and try again.';if(type&&!type.startsWith('image/'))return 'That file is not an image.';return 'That image could not be opened. Try a JPEG or PNG.'}
+function readPhoto(file){if(!file)return Promise.resolve({error:'Choose an image file.'});const type=(file.type||'').toLowerCase(),name=(file.name||'').toLowerCase();if(!(type.startsWith('image/')||/\.(heic|heif|jpe?g|png|gif|webp|bmp|avif)$/.test(name)))return Promise.resolve({error:'That file is not an image.'});if(file.size>8*1024*1024)return Promise.resolve({error:'That photo is too large. Choose one under 8 MB.'});return decodeFile(file).then(bmp=>{try{return {url:cropSquare(bmp)}}finally{if(bmp.close)bmp.close()}}).catch(()=>({error:photoError(file)}))}
+function editProfile(isNew){let av=S.avatar,photo=S.photo||'';histPush({screen:'edit',fresh:!!isNew});
   app.className='';app.innerHTML=`<main class="fade onb"><h1 class="h1">${isNew?'Welcome to ByteRyte 🌱':'Edit profile'}</h1>${isNew?'<p class="muted">Learn the fundamentals behind the code you ship — Java first, with JavaFX, HTML/CSS and Swift branches.</p>':''}
   <label class="lbl" for="nm">Your name</label><input id="nm" class="inp" maxlength="24" value="${esc(S.name==='Learner'&&isNew?'':S.name)}" placeholder="e.g. Alex" autocomplete="nickname">
+  <div class="lbl" id="photolbl">Profile photo</div><div class="photorow"><div class="avatar big" id="avprev" aria-hidden="true"></div><div><div class="row2"><label class="btn sm alt" for="pic">Choose photo</label><button class="btn sm alt" type="button" id="rmphoto">Remove photo</button></div><input id="pic" type="file" accept="image/*" hidden aria-labelledby="photolbl"><p class="muted sm" id="pichint">Any photo from your camera roll or files. It stays on this device.</p><p class="picerr" id="picerr" role="alert"></p></div></div>
   <div class="lbl">Pick an avatar</div><div class="avs" role="radiogroup" aria-label="Pick an avatar">${AVATARS.map((a,i)=>`<button role="radio" aria-checked="${a===av}" aria-label="${AVATAR_NAMES[i]} avatar" class="avatar ${a===av?'on':''}" data-a="${a}">${a}</button>`).join('')}</div>
   <div class="lbl">Daily goal</div><div class="goals">${[[10,'Casual'],[30,'Regular'],[50,'Serious'],[100,'Intense']].map(([g,n])=>`<button class="opt goal ${S.goal===g?'sel':''}" data-g="${g}"><b>${n}</b> · ${g} XP/day</button>`).join('')}</div>
   ${isNew?`<button class="btn" id="sv">Start from scratch</button><button class="btn alt" id="pl" style="margin-top:12px">Take placement test (skip the Java language drill)</button>`:`<button class="btn" id="sv">Save</button>${Object.keys(P.list).length>1?'<button class="btn red" id="del" style="margin-top:12px">Delete this profile</button>':''}<button class="btn alt" id="cx" style="margin-top:12px">Cancel</button>`}</main>`;
-  $$('.avs .avatar').forEach(b=>b.onclick=()=>{av=b.dataset.a;$$('.avs .avatar').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-checked',x===b)})});
+  const paintPrev=()=>{const el=$('#avprev');el.className='avatar big'+(cleanPhoto(photo)?' has-photo':'');el.innerHTML=faceHTML({avatar:av,photo});$('#rmphoto').disabled=!cleanPhoto(photo)};
+  paintPrev();
+  $$('.avs .avatar').forEach(b=>b.onclick=()=>{av=b.dataset.a;photo='';$$('.avs .avatar').forEach(x=>{x.classList.toggle('on',x===b);x.setAttribute('aria-checked',x===b)});paintPrev()});
+  $('#pic').onchange=()=>{const f=$('#pic').files&&$('#pic').files[0];$('#pic').value='';if(!f)return;$('#picerr').textContent='';readPhoto(f).then(r=>{if(r.error){$('#picerr').textContent=r.error;return}photo=r.url;paintPrev()})};
+  $('#rmphoto').onclick=()=>{photo='';paintPrev();$('#picerr').textContent=''};
   let goal=S.goal;
   $$('.goal').forEach(b=>b.onclick=()=>{goal=+b.dataset.g;$$('.goal').forEach(x=>x.classList.toggle('sel',x.dataset.g===String(goal)))});
-  const commit=()=>{S.name=($('#nm').value.trim()||'Learner').slice(0,24);S.avatar=av;S.goal=goal;S.onboarded=true;save()};
-  $('#sv').onclick=()=>{if(!once($('#sv')))return;commit();if(isNew)land('learn');else navBack(profile)};
+  const commit=()=>{const prev=S.photo||'',next=cleanPhoto(photo);S.name=($('#nm').value.trim()||'Learner').slice(0,24);S.avatar=av;S.photo=next;S.goal=goal;S.onboarded=true;const ok=save();if(!ok&&S&&S.photo===next){S.photo=prev;if(P.list[S.id])P.list[S.id].photo=prev;const err=$('#picerr');if(err)err.textContent='Not enough space on this device to keep that photo.';return false}return true};
+  $('#sv').onclick=()=>{if(!once($('#sv')))return;if(!commit())return;if(isNew)land('learn');else navBack(profile)};
   $('#cx')&&($('#cx').onclick=()=>{if(!once($('#cx')))return;navBack(profile)});
-  $('#pl')&&($('#pl').onclick=()=>{if(!once($('#pl')))return;commit();try{history.replaceState({br:1,screen:'learn'},'')}catch(e){}cur='learn';const pool=[];lessons(T('java')).filter(x=>DRILL.includes(x.key)).forEach(x=>{const e=x.l.ex.filter(e=>e.t!=='ar');pool.push(...shuffle(e).slice(0,2).map((e)=>({e,k:x.key+'~'+x.l.ex.indexOf(e)})))});start(pool,{name:'Placement test',mode:'placement'})});
+  $('#pl')&&($('#pl').onclick=()=>{if(!once($('#pl')))return;if(!commit())return;try{history.replaceState({br:1,screen:'learn'},'')}catch(e){}cur='learn';const pool=[];lessons(T('java')).filter(x=>DRILL.includes(x.key)).forEach(x=>{const e=x.l.ex.filter(e=>e.t!=='ar');pool.push(...shuffle(e).slice(0,2).map((e)=>({e,k:x.key+'~'+x.l.ex.indexOf(e)})))});start(pool,{name:'Placement test',mode:'placement'})});
   $('#del')&&($('#del').onclick=()=>{if(!once($('#del')))return;if(!confirm(`Delete ${S.name}'s profile? This cannot be undone.`))return;delete P.list[S.id];P.active=Object.keys(P.list)[0];S=P.list[P.active];save();land('learn')});
 }
 const onboard=()=>editProfile(true);
@@ -520,7 +555,7 @@ function settings(){cur='settings';daily();
   $$('[data-g]').forEach(b=>b.onclick=()=>{if(!tap('goal'))return;S.goal=+b.dataset.g;save();settings()});
   $('#exp').onclick=()=>{const blob=new Blob([JSON.stringify({app:'ByteRyte',v:2,profiles:P,settings:G},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`byteroots-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
   $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false,rytia:true},d.settings);saveG();applyTheme()}hydrate();Object.keys(P.list).forEach(id=>{if(P.list[id])P.list[id].gen=(P.list[id].gen||0)+1});rememberAll();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}const prev=readStore(PK);P.rev=Math.max(P.rev||0,prev&&prev.rev||0);save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
-  $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;n.gen=(S.gen||0)+1;S=n;save();land('learn')}};
+  $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;n.gen=(S.gen||0)+1;n.photo=S.photo||'';S=n;save();land('learn')}};
 }
 // ---------- lesson engine ----------
 let R,timerId,heartWatch;
