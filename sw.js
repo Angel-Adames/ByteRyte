@@ -1,4 +1,4 @@
-const C='byteryte-v29',F=['./','index.html','style.css','app.js','data.js','interview.js','grade.js','rytia.js','boot.js','manifest.webmanifest','icons/icon.svg','icons/icon-180.png','icons/icon-192.png','icons/icon-512.png'];
+const C='byteryte-v30',F=['./','index.html','style.css','app.js','data.js','interview.js','grade.js','rytia.js','boot.js','manifest.webmanifest','icons/icon.svg','icons/icon-180.png','icons/icon-192.png','icons/icon-512.png'];
 const APP=new Set(F.map(f=>f.replace(/^\.\//,'')));
 self.addEventListener('install',e=>{e.waitUntil(caches.open(C).then(c=>c.addAll(F)));self.skipWaiting()});
 self.addEventListener('activate',e=>{e.waitUntil((async()=>{

@@ -276,13 +276,13 @@ test('larger text keeps the home screen inside the viewport', async ({ page }, t
   expect(zoomed).toEqual([]);
 });
 
-test('service worker v29 replaces a v28 cache and keeps the open tab on the app', async ({ page }, testInfo) => {
+test('service worker v30 replaces a v29 cache and keeps the open tab on the app', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await page.evaluate(async () => {
-    const cache = await caches.open('byteryte-v28');
-    await cache.put(new Request(new URL('legacy-v28.txt', location.href)), new Response('old'));
+    const cache = await caches.open('byteryte-v29');
+    await cache.put(new Request(new URL('legacy-v29.txt', location.href)), new Response('old'));
     const reg = await navigator.serviceWorker.getRegistration();
     if (reg) await reg.unregister();
   });
@@ -292,10 +292,10 @@ test('service worker v29 replaces a v28 cache and keeps the open tab on the app'
     try {
       return await page.evaluate(async () => {
         const keys = await caches.keys();
-        return { v29: keys.includes('byteryte-v29'), v28: keys.includes('byteryte-v28') };
+        return { v30: keys.includes('byteryte-v30'), v29: keys.includes('byteryte-v29') };
       });
-    } catch (e) { return { v29: false, v28: true }; }
-  }).toEqual({ v29: true, v28: false });
+    } catch (e) { return { v30: false, v29: true }; }
+  }).toEqual({ v30: true, v29: false });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new Event('controllerchange')));
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
