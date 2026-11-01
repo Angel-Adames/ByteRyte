@@ -184,6 +184,9 @@ test('lofi starts only after a tap, and the volume sliders change the gain', asy
   const on = await page.evaluate(() => window.__BR.aud());
   expect(on.musicGain).toBeGreaterThan(0.02);
   expect(on.sfxGain).toBeGreaterThan(0.5);
+  expect(on.musicDest).toBe(true);
+  expect(on.sfxDest).toBe(true);
+  expect(on.silent).toBe(true);
   await page.getByRole('button', { name: 'Settings' }).click();
   await page.getByLabel('Music volume').fill('10');
   await expect.poll(() => page.evaluate(() => window.__BR.aud().musicGain)).toBeLessThan(on.musicGain);
@@ -215,6 +218,24 @@ test('lofi starts only after a tap, and the volume sliders change the gain', asy
   expect(silent.sfxGain).toBe(0);
   await page.reload();
   await expect.poll(() => page.evaluate(() => window.__BR.aud().music)).toBe(false);
+});
+
+test('a saved music preference starts on the first tap', async ({ page }, testInfo) => {
+  await boot(page, testInfo, { settings: { music: true, sound: true } });
+  await expect.poll(() => page.evaluate(() => window.__BR.aud())).toMatchObject({ state: 'none', music: true, musicGain: 0, silent: false });
+  await page.getByRole('button', { name: 'Lofi music' }).click();
+  await expect.poll(() => page.evaluate(() => window.__BR.aud())).toMatchObject({ state: 'running', music: true, musicDest: true, silent: true });
+  expect(await page.evaluate(() => window.__BR.aud().musicGain)).toBeGreaterThan(0.02);
+});
+
+test('a sound-effect tap unlocks audio without starting music', async ({ page }, testInfo) => {
+  await boot(page, testInfo, { settings: { sound: true } });
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByRole('button', { name: 'Preview sound' }).click();
+  await expect.poll(() => page.evaluate(() => window.__BR.aud())).toMatchObject({
+    state: 'running', music: false, musicGain: 0, sfxDest: true, silent: true,
+  });
+  expect(await page.evaluate(() => window.__BR.aud().sfxGain)).toBeGreaterThan(0);
 });
 
 test('settings survive export and import', async ({ page }, testInfo) => {
