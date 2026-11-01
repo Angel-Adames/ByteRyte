@@ -12,7 +12,8 @@ const AVATAR_NAMES=['Fox','Panda','Octopus','Owl','Frog','Tiger','Koala','Unicor
 const NEWP=(name='Learner',avatar='🦊')=>({id:'p'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,avatar,xp:0,streak:0,best:0,last:null,hearts:5,heartDay:today(),done:{},review:{},misses:{},xpLog:{},gems:50,freezes:0,inv:{fifty:1,skip:1},doubleUntil:0,goal:30,goalDay:null,badges:{},saved:{},dlog:{},stats:{answered:0,correct:0,perfect:0,lessons:0,interviews:0,bestIv:0,reviews:0,challenges:0},onboarded:false,track:'java',unlockAll:false,created:Date.now(),curriculum:2,gates:{}});
 // ---------- storage + migration ----------
 const readStore=k=>{try{const t=localStorage.getItem(k);return t?JSON.parse(t):null}catch(e){return null}};
-let G=Object.assign({theme:'system',sound:true,big:false,rytia:true},readStore(GK)||{});
+function normG(raw){const g=raw&&typeof raw==='object'&&!Array.isArray(raw)?raw:{};const text=['sm','md','lg','xl'].includes(g.text)?g.text:(g.big?'lg':'md');const vol=(v,d)=>{const n=Number(v);return Number.isFinite(n)?Math.min(1,Math.max(0,n)):d};return {theme:['system','light','dark'].includes(g.theme)?g.theme:'system',accent:['grove','tide','dusk','clay'].includes(g.accent)?g.accent:'grove',text,big:text==='lg'||text==='xl',sound:g.sound!==false,sfxVol:vol(g.sfxVol,.8),music:!!g.music,musicVol:vol(g.musicVol,.45),rytia:g.rytia!==false,motion:!!g.motion,haptics:g.haptics!==false}}
+let G=normG(Object.assign({theme:'system',sound:true,big:false,rytia:true},readStore(GK)||{}));
 let P=readStore(PK);
 if(!P||typeof P!=='object'||Array.isArray(P)){P={active:null,list:{}};const old=readStore('byteroots-v1');
   if(old&&typeof old==='object'&&!Array.isArray(old)){const p=Object.assign(NEWP(),{xp:old.xp||0,streak:old.streak||0,done:old.done||{},review:old.review||{},misses:old.misses||{},saved:old.saved||{},track:old.track||'java',onboarded:true,curriculum:old.curriculum});
@@ -239,11 +240,24 @@ function daily(){ // refill hearts at midnight, streak freeze handling, then pay
 // ---------- theme / sound / toast ----------
 const mq=matchMedia('(prefers-color-scheme: dark)');
 const standalone=()=>{try{return matchMedia('(display-mode: standalone)').matches||navigator.standalone===true}catch(e){return false}};
-const applyTheme=()=>{if(!['system','light','dark'].includes(G.theme))G.theme='system';G.sound=!!G.sound;G.big=!!G.big;G.rytia=G.rytia!==false;const d=G.theme==='dark'||(G.theme==='system'&&mq.matches);document.documentElement.dataset.theme=d?'dark':'light';$('meta[name=theme-color]').content=d?'#0b1220':'#16a34a';document.documentElement.toggleAttribute('data-big',!!G.big);document.documentElement.toggleAttribute('data-standalone',standalone())};
-mq.addEventListener?.('change',applyTheme);applyTheme();
-let AC;const tone=(f,d=.12,t=0,type='sine')=>{if(!G.sound)return;try{AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(AC.state==='suspended')AC.resume();const o=AC.createOscillator(),g=AC.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(.0001,AC.currentTime+t);g.gain.exponentialRampToValueAtTime(.15,AC.currentTime+t+.02);g.gain.exponentialRampToValueAtTime(.0001,AC.currentTime+t+d);o.connect(g).connect(AC.destination);o.start(AC.currentTime+t);o.stop(AC.currentTime+t+d+.05)}catch(e){}};
+const rmq=matchMedia('(prefers-reduced-motion: reduce)');
+const applyTheme=()=>{G=normG(G);const d=G.theme==='dark'||(G.theme==='system'&&mq.matches);const root=document.documentElement;root.dataset.theme=d?'dark':'light';root.dataset.accent=G.accent;root.dataset.text=G.text;root.toggleAttribute('data-big',!!G.big);root.toggleAttribute('data-reduce',!!(G.motion||rmq.matches));$('meta[name=theme-color]').content=d?'#0b1220':'#16a34a';root.toggleAttribute('data-standalone',standalone())};
+mq.addEventListener?.('change',applyTheme);rmq.addEventListener?.('change',applyTheme);applyTheme();
+// Original lofi, synthesized here with the Web Audio API. No audio file and no third-party recording.
+let AC,musG,sfxG,nbuf,musTimer=0,musStep=0,musTouched=false;
+function ensureCtx(){AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(!musG){musG=AC.createGain();musG.gain.value=0;musG.connect(AC.destination);sfxG=AC.createGain();sfxG.connect(AC.destination)}sfxG.gain.value=sfxLevel();return AC}
+function sfxLevel(){return G.sound?Math.max(0,Math.min(1,Number(G.sfxVol)||0)):0}
+function musicLevel(){if(!G.music||!musTouched||document.visibilityState==='hidden')return 0;return Math.max(0,Math.min(1,Number(G.musicVol)||0))*0.085}
+function noise(){if(nbuf)return nbuf;const n=AC.sampleRate;nbuf=AC.createBuffer(1,n,n);const d=nbuf.getChannelData(0);for(let i=0;i<n;i++)d[i]=Math.random()*2-1;const src=AC.createBufferSource();src.buffer=nbuf;src.loop=true;const f=AC.createBiquadFilter();f.type='highpass';f.frequency.value=800;const g=AC.createGain();g.gain.value=0.02;src.connect(f).connect(g).connect(musG);src.start();return nbuf}
+function burst(t,freq,peak,dur,type){const o=AC.createOscillator(),g=AC.createGain();o.type=type||'sine';o.frequency.setValueAtTime(freq,t);g.gain.setValueAtTime(0.0001,t);g.gain.exponentialRampToValueAtTime(Math.max(0.001,peak),t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,t+dur);o.connect(g).connect(musG);o.start(t);o.stop(t+dur+0.02)}
+function haltLoop(){if(musTimer){clearInterval(musTimer);musTimer=0}}
+function ensureLoop(){if(musTimer||!AC)return;noise();const beat=60/74*1000;const tick=()=>{if(musicLevel()<=0){haltLoop();return}const t=AC.currentTime+0.04,b=musStep++;const chords=[[[220,.03],[262,.02],[330,.016],[392,.012]],[[196,.028],[247,.02],[294,.016],[370,.012]],[[175,.028],[220,.02],[262,.015],[349,.012]],[[165,.028],[208,.02],[247,.015],[330,.012]]];if(b%8===0)chords[(b/8)%4|0].forEach(([f,p],i)=>burst(t,f,p,1.8,i?'triangle':'sine'));if(b%4===0)burst(t,90,0.09,0.18);if(b%2===0){const o=AC.createBufferSource();o.buffer=nbuf;const g=AC.createGain();g.gain.setValueAtTime(0.03,t);g.gain.exponentialRampToValueAtTime(0.0001,t+0.05);o.connect(g).connect(musG);o.start(t);o.stop(t+0.06)}};tick();musTimer=setInterval(tick,beat)}
+function syncAud(){if(sfxG)sfxG.gain.value=sfxLevel();if(!musG)return;const lv=musicLevel();musG.gain.value=lv;if(lv>0)ensureLoop();else haltLoop()}
+function toggleMusic(){musTouched=true;G.music=!G.music;const ac=ensureCtx();if(ac.state==='suspended')ac.resume();syncAud();saveG();if(cur==='settings')settings();else{const b=$('#mus');if(b){b.setAttribute('aria-pressed',G.music?'true':'false');b.textContent=G.music?'🎵':'♫'}}}
+function tone(f,d=.12,t=0,type='sine'){if(!sfxLevel())return;try{const ac=ensureCtx();if(ac.state==='suspended')ac.resume();const o=ac.createOscillator(),g=ac.createGain();o.type=type;o.frequency.value=f;g.gain.setValueAtTime(0.0001,ac.currentTime+t);g.gain.exponentialRampToValueAtTime(0.15,ac.currentTime+t+0.02);g.gain.exponentialRampToValueAtTime(0.0001,ac.currentTime+t+d);o.connect(g).connect(sfxG);o.start(ac.currentTime+t);o.stop(ac.currentTime+t+d+0.05)}catch(e){}}
 const sfx={ok:()=>{tone(660);tone(880,.15,.09)},no:()=>{tone(220,.2,0,'triangle')},win:()=>[523,659,784,1047].forEach((f,i)=>tone(f,.18,i*.11)),coin:()=>{tone(988,.08);tone(1319,.15,.07)}};
-const buzz=ms=>{try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
+const buzz=ms=>{if(G.haptics===false)return;try{navigator.vibrate&&navigator.vibrate(ms)}catch(e){}};
+document.addEventListener('visibilitychange',syncAud);addEventListener('pagehide',()=>{if(musG){musG.gain.value=0;haltLoop()}});addEventListener('pageshow',()=>{if(musTouched)syncAud()});
 const TQ=[];let tBusy=false;function toast(msg){TQ.push(msg);if(!tBusy)nextToast()}function nextToast(){const msg=TQ.shift();if(msg===undefined){tBusy=false;return}tBusy=true;const t=document.createElement('div');t.className='toast';t.setAttribute('role','status');t.textContent=msg;document.body.appendChild(t);const d=TQ.length?1500:2600;setTimeout(()=>t.classList.add('out'),d);setTimeout(()=>{t.remove();nextToast()},d+350)}
 // ---------- syntax highlight ----------
 const KW=/^(abstract|boolean|break|case|catch|char|class|const|continue|default|do|double|else|enum|extends|final|finally|float|for|if|implements|import|instanceof|int|interface|long|new|null|package|permits|private|protected|public|record|return|sealed|short|static|super|switch|this|throw|throws|try|var|void|when|while|true|false|let|func|struct|guard|in|protocol|extension|mutating|nil|some|inout|self|init|where|as|is|yield|async|await)$/;
@@ -335,13 +349,13 @@ const NAV=[['learn','📚','Learn'],['practice','🎯','Practice'],['interview',
 let cur='learn';
 function topbar(){const tight=S.streak>=100||S.gems>=1000;return `<header class="top${tight?' tight':''}"><button class="brand" data-go="learn" aria-label="ByteRyte home"><span class="logo">{ }</span>ByteRyte</button>
 <span class="stat" title="Day streak" aria-label="${S.streak} day streak">🔥 ${compact(S.streak)}</span><span class="stat" title="Gems" aria-label="${S.gems} gems">💎 ${compact(S.gems)}</span><span class="stat" title="${S.hearts<5&&nextHeart()?'Next heart in '+nextHeart():'Hearts full'}" aria-label="${S.hearts} hearts${S.hearts<5&&nextHeart()?', next in '+nextHeart():''}">❤️ ${S.hearts}</span>
-<button class="icon" data-go="settings" aria-label="Settings">⚙️</button></header>`}
+<button class="icon" id="mus" aria-pressed="${G.music?'true':'false'}" aria-label="Lofi music">${G.music?'🎵':'♫'}</button><button class="icon" data-go="settings" aria-label="Settings">⚙️</button></header>`}
 function rail(){const lv=level(),wk=[...Array(7)].reduce((a,_,i)=>a+(S.xpLog[shiftDay(-i)]||0),0);
   return `<aside class="rail" aria-label="Your progress"><section class="rcard me"><span class="avatar${cleanPhoto(S.photo)?' has-photo':''}">${faceHTML(S)}</span><div><b>${esc(S.name)}</b><small>Level ${lv.L} · ${lv.into}/${lv.need} XP</small><div class="bar sm"><i style="width:${lv.into/lv.need*100}%"></i></div></div></section>
   <section class="rcard"><div class="sgrid s2"><div class="scard">🔥<b>${S.streak}</b>streak</div><div class="scard">⚡<b>${wk}</b>XP this week</div></div></section>${questsHTML()}
   <section class="rcard promo"><b>💼 Interview coming up?</b><small>Run a timed mock screen and get a hire/no-hire scorecard.</small><button class="btn sm" data-go="interview">Practice now</button></section></aside>`}
 function shell(inner,{nav=true}={}){regen();document.querySelectorAll('.conf').forEach(c=>c.remove());app.className=nav?'withnav':'';app.innerHTML=topbar()+`<main id="main" class="fade">${/<h1[\s>]/.test(inner)?'':`<h1 class="sr">ByteRyte · ${({learn:'Learn path',practice:'Practice',interview:'Mock interview',shop:'Gem shop',profile:'Profile',settings:'Settings'})[cur]||'Home'}</h1>`}${inner}</main>`+(nav?rail():'')+(nav?`<nav class="bnav" aria-label="Main">${NAV.map(([id,ic,l])=>`<button data-go="${id}" class="${cur===id?'on':''}" ${cur===id?'aria-current="page"':''}><span aria-hidden="true">${ic}</span>${l}</button>`).join('')}</nav>`:'');
-  $$('[data-go]').forEach(b=>b.onclick=()=>{if(!once(b))return;go(b.dataset.go)});window.scrollTo(0,0)}
+  $$('[data-go]').forEach(b=>b.onclick=()=>{if(!once(b))return;go(b.dataset.go)});const mb=$('#mus');if(mb)mb.onclick=()=>{if(!once(mb))return;toggleMusic()};window.scrollTo(0,0)}
 function show(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,settings}[v]||home)()}
 let histLock=false,navLock=false;
 function histPush(state){
@@ -537,26 +551,52 @@ function editProfile(isNew){let av=S.avatar,photo=S.photo||'';histPush({screen:'
 const onboard=()=>editProfile(true);
 // ---------- settings ----------
 function settings(){cur='settings';daily();
+  const many=Object.keys(P.list).length>1;
+  const seg=(id,label,opts,curv)=>`<div class="set"><b id="${id}">${label}</b><div class="seg" role="radiogroup" aria-labelledby="${id}">${opts.map(([v,n])=>`<button role="radio" aria-checked="${curv===v}" class="${curv===v?'on':''}" data-${id}="${v}">${n}</button>`).join('')}</div></div>`;
   shell(`<h1 class="h1">Settings</h1>
-  <div class="set"><b id="appear">Appearance</b><div class="seg" role="radiogroup" aria-labelledby="appear">${['system','light','dark'].map(t=>`<button role="radio" aria-checked="${G.theme===t}" class="${G.theme===t?'on':''}" data-th="${t}">${{system:'🖥 System',light:'☀️ Light',dark:'🌙 Dark'}[t]}</button>`).join('')}</div></div>
+  <div class="set"><b id="appear">Color mode</b><div class="seg" role="radiogroup" aria-labelledby="appear">${[['system','🖥 System'],['light','☀️ Light'],['dark','🌙 Dark']].map(([v,n])=>`<button role="radio" aria-checked="${G.theme===v}" class="${G.theme===v?'on':''}" data-appear="${v}">${n}</button>`).join('')}</div></div>
+  ${seg('accent','Accent',[['grove','Grove'],['tide','Tide'],['dusk','Dusk'],['clay','Clay']],G.accent)}
+  ${seg('size','Text size',[['sm','Small'],['md','Default'],['lg','Large'],['xl','Extra large']],G.text)}
+  <div class="set"><b id="audio">Audio</b><p class="muted">Lofi is made in this browser from soft chords, a slow drum, and a little noise. It is original. Nothing is streamed or downloaded.</p>
+  <div class="set row"><b>Lofi music</b><button class="switch ${G.music?'on':''}" id="musw" role="switch" aria-checked="${G.music}" aria-label="Lofi music"><i></i></button></div>
+  <label class="volrow" for="mvol">Music volume</label><input id="mvol" class="vol" type="range" min="0" max="100" value="${Math.round(G.musicVol*100)}" aria-label="Music volume">
   <div class="set row"><b>Sound effects</b><button class="switch ${G.sound?'on':''}" id="snd" role="switch" aria-checked="${G.sound}" aria-label="Sound effects"><i></i></button></div>
+  <label class="volrow" for="svol">Effects volume</label><input id="svol" class="vol" type="range" min="0" max="100" value="${Math.round(G.sfxVol*100)}" aria-label="Effects volume">
+  <button class="btn sm alt" id="sprev" type="button">Preview sound</button></div>
   <div class="set row"><div><b>Ask Rytia why</b><p class="muted" style="margin:2px 0 0">After a wrong answer, a button can open a short note</p></div><button class="switch ${G.rytia?'on':''}" id="ry" role="switch" aria-checked="${G.rytia}" aria-label="Ask Rytia why"><i></i></button></div>
-  <div class="set row"><div><b>Larger text</b><p class="muted" style="margin:2px 0 0">Bigger type and buttons for readability</p></div><button class="switch ${G.big?'on':''}" id="big" role="switch" aria-checked="${G.big}" aria-label="Larger text"><i></i></button></div>
+  <div class="set row"><div><b>Reduce motion</b><p class="muted" style="margin:2px 0 0">Turns off the little animations. A system setting that asks for less motion is always honored.</p></div><button class="switch ${G.motion?'on':''}" id="mot" role="switch" aria-checked="${G.motion}" aria-label="Reduce motion"><i></i></button></div>
+  <div class="set row"><div><b>Vibration</b><p class="muted" style="margin:2px 0 0">A short buzz on a correct answer, a miss, and a purchase, when the device allows it.</p></div><button class="switch ${G.haptics?'on':''}" id="hap" role="switch" aria-checked="${G.haptics}" aria-label="Vibration"><i></i></button></div>
   <div class="set row"><b>Unlock all lessons</b><button class="switch ${S.unlockAll?'on':''}" id="ua" role="switch" aria-checked="${S.unlockAll}" aria-label="Unlock all lessons"><i></i></button></div>
   <div class="set"><b>Daily goal</b><div class="seg" role="radiogroup" aria-label="Daily goal">${[10,30,50,100].map(g=>`<button role="radio" aria-checked="${S.goal===g}" class="${S.goal===g?'on':''}" data-g="${g}">${g} XP</button>`).join('')}</div></div>
   <div class="set"><b>Backup</b><p class="muted">Export all profiles to a JSON file, or import one to move progress to another device.</p><div class="row2"><button class="btn sm alt" id="exp">⬇️ Export</button><label class="btn sm alt" for="imp">⬆️ Import</label><input type="file" id="imp" accept="application/json" hidden></div></div>
   <div class="set"><b>Keyboard shortcuts (desktop)</b><p class="muted">1–9 choose an answer (or a code line in Arrange) · Backspace undo last line · Enter check / continue · H 50/50 · S skip · Esc quit</p></div>
-  <div class="set"><b>Danger zone</b><button class="btn sm red" id="rs">Reset ${esc(S.name)}'s progress</button></div>
+  <div class="set"><b>Danger zone</b><p class="muted">Deleting all data removes every profile, lesson, photo, and setting on this device. Export a backup first. This cannot be undone.</p>
+  <button class="btn sm red block" id="rs">Reset ${esc(S.name)}'s progress</button>
+  ${many?`<button class="btn sm red block" id="delme">Delete ${esc(S.name)}'s profile</button>`:''}
+  <button class="btn sm red block" id="delshow">Delete all data on this device</button>
+  <div id="delbox" hidden><label class="volrow" for="delword">Type DELETE to confirm</label><input id="delword" class="inp" autocomplete="off" aria-label="Type DELETE to confirm"><div class="row2" style="margin-top:10px"><button class="btn sm red" id="delall" disabled>Delete everything</button><button class="btn sm alt" id="delno" type="button">Cancel</button></div></div></div>
   <p class="note">ByteRyte · original app, not affiliated with any other language-learning brand. All data stays on this device.</p>`);
-  $$('[data-th]').forEach(b=>b.onclick=()=>{if(!tap('theme-'+b.dataset.th))return;G.theme=b.dataset.th;saveG();applyTheme();settings()});
-  $('#snd').onclick=()=>{if(!tap('sound'))return;G.sound=!G.sound;saveG();settings()};
+  $$('#main button[data-appear]').forEach(b=>b.onclick=()=>{if(!tap('theme-'+b.dataset.appear))return;G.theme=b.dataset.appear;saveG();applyTheme();settings()});
+  $$('#main button[data-accent]').forEach(b=>b.onclick=()=>{if(!tap('accent-'+b.dataset.accent))return;G.accent=b.dataset.accent;saveG();applyTheme();settings()});
+  $$('#main button[data-size]').forEach(b=>b.onclick=()=>{if(!tap('size-'+b.dataset.size))return;G.text=b.dataset.size;saveG();applyTheme();settings()});
+  $('#musw').onclick=()=>{if(!tap('music'))return;toggleMusic()};
+  $('#mvol').oninput=e=>{G.musicVol=+e.target.value/100;saveG();syncAud()};
+  $('#snd').onclick=()=>{if(!tap('sound'))return;G.sound=!G.sound;saveG();syncAud();settings()};
+  $('#svol').oninput=e=>{G.sfxVol=+e.target.value/100;saveG();syncAud()};
+  $('#sprev').onclick=()=>{if(!once($('#sprev')))return;sfx.ok()};
   $('#ry').onclick=()=>{if(!tap('rytia'))return;G.rytia=!G.rytia;saveG();settings()};
-  $('#big').onclick=()=>{if(!tap('big'))return;G.big=!G.big;saveG();applyTheme();settings()};
+  $('#mot').onclick=()=>{if(!tap('motion'))return;G.motion=!G.motion;saveG();applyTheme();settings()};
+  $('#hap').onclick=()=>{if(!tap('haptics'))return;G.haptics=!G.haptics;saveG();settings()};
   $('#ua').onclick=()=>{if(!tap('unlock'))return;S.unlockAll=!S.unlockAll;save();settings()};
-  $$('[data-g]').forEach(b=>b.onclick=()=>{if(!tap('goal'))return;S.goal=+b.dataset.g;save();settings()});
+  $$('#main button[data-g]').forEach(b=>b.onclick=()=>{if(!tap('goal'))return;S.goal=+b.dataset.g;save();settings()});
   $('#exp').onclick=()=>{const blob=new Blob([JSON.stringify({app:'ByteRyte',v:2,profiles:P,settings:G},null,1)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`byteroots-backup-${today()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1500)};
-  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=ownCopy({theme:'system',sound:true,big:false,rytia:true},d.settings);saveG();applyTheme()}hydrate();Object.keys(P.list).forEach(id=>{if(P.list[id])P.list[id].gen=(P.list[id].gen||0)+1});rememberAll();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}const prev=readStore(PK);P.rev=Math.max(P.rev||0,prev&&prev.rev||0);save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
+  $('#imp').onchange=e=>{const f=e.target.files[0];e.target.value='';if(!f)return;f.text().then(t=>{try{const d=JSON.parse(t);const plain=o=>!!o&&typeof o==='object'&&!Array.isArray(o);if((d.app!=='ByteRyte'&&d.app!=='ByteRoots')||!plain(d.profiles)||!plain(d.profiles.list))throw 0;if(!confirm('Replace all profiles on this device with this backup?'))return;P=d.profiles;if(plain(d.settings)){G=normG(ownCopy({},d.settings));saveG();applyTheme();syncAud()}hydrate();Object.keys(P.list).forEach(id=>{if(P.list[id])P.list[id].gen=(P.list[id].gen||0)+1});rememberAll();if(!S){const p=NEWP();P.list[p.id]=p;P.active=p.id;S=p}const prev=readStore(PK);P.rev=Math.max(P.rev||0,prev&&prev.rev||0);save();daily();toast('✅ Progress imported');land('learn')}catch(_){toast('⚠️ That file is not a ByteRyte backup')}})};
   $('#rs').onclick=()=>{if(confirm('Reset all progress for this profile?')){const n=NEWP(S.name,S.avatar);n.id=S.id;n.created=S.created;n.onboarded=true;n.gen=(S.gen||0)+1;n.photo=S.photo||'';S=n;save();land('learn')}};
+  $('#delme')&&($('#delme').onclick=()=>{if(!confirm(`Delete ${S.name}'s profile on this device? This cannot be undone.`))return;delete P.list[S.id];P.active=Object.keys(P.list)[0];S=P.list[P.active];save();land('learn')});
+  $('#delshow').onclick=()=>{if(!once($('#delshow')))return;$('#delbox').hidden=false;$('#delword').focus()};
+  $('#delword').oninput=()=>{$('#delall').disabled=$('#delword').value!=='DELETE'};
+  $('#delno').onclick=()=>{$('#delword').value='';$('#delall').disabled=true;$('#delbox').hidden=true};
+  $('#delall').onclick=async()=>{if($('#delword').value!=='DELETE'||!once($('#delall')))return;haltLoop();try{localStorage.clear()}catch(e){}try{if(window.caches){const ks=await caches.keys();await Promise.all(ks.map(k=>caches.delete(k)))}}catch(e){}location.reload()};
 }
 // ---------- lesson engine ----------
 let R,timerId,heartWatch;
@@ -740,7 +780,7 @@ addEventListener('popstate',onPop);
 histLock=true;restore(history.state);histLock=false;
 addEventListener('storage',e=>{
   if(e.key===GK&&e.newValue){
-    try{const g=JSON.parse(e.newValue);if(g&&typeof g==='object'&&!Array.isArray(g)){G=Object.assign({theme:'system',sound:true,big:false,rytia:true},g);applyTheme()}}catch(err){}
+    try{const g=JSON.parse(e.newValue);if(g&&typeof g==='object'&&!Array.isArray(g)){G=normG(g);applyTheme();syncAud()}}catch(err){}
     return;
   }
   if(e.key!==PK||!e.newValue)return;
@@ -754,5 +794,5 @@ addEventListener('storage',e=>{
   finally{syncing=false}
 });
 if('serviceWorker' in navigator){let had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had){had=true;return}try{if(sessionStorage.getItem('byteryte-sw-reload')==='1')return;sessionStorage.setItem('byteryte-sw-reload','1')}catch(e){}location.reload()})}
-window.__BR={get S(){return S},P:()=>P,cur:()=>R&&R.q[0]&&R.q[0].e};
+window.__BR={get S(){return S},P:()=>P,cur:()=>R&&R.q[0]&&R.q[0].e,aud:()=>({state:AC?AC.state:'none',music:!!G.music,musicGain:musG?musG.gain.value:0,sfxGain:sfxG?sfxG.gain.value:0,sfxVol:G.sfxVol,musicVol:G.musicVol,sound:!!G.sound,text:G.text,accent:G.accent})};
 })();

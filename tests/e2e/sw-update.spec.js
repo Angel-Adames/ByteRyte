@@ -62,7 +62,7 @@ test('an open tab moves from an old cached version onto the newly deployed asset
   });
   expect(kept).toEqual({ name: 'Ada', xp: 80, run: true });
   const names = await page.evaluate(async () => (await caches.keys()).sort());
-  expect(names).toContain('byteryte-v30');
+  expect(names).toContain('byteryte-v31');
   expect(names).not.toContain('byteryte-old');
 
   await page.context().setOffline(true);
