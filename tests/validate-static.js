@@ -9,13 +9,15 @@ const bad = m => issues.push(m);
 const app = read('app.js'), sw = read('sw.js'), index = read('index.html'), manifest = read('manifest.webmanifest'), css = read('style.css'), boot = read('boot.js');
 const all = [app, sw, index, manifest, css, boot, read('data.js'), read('interview.js'), read('rytia.js'), read('README.md')].join('\n');
 
-if (!/const C='byteryte-v32'/.test(sw)) bad('service worker cache is not byteryte-v32');
+if (!/const C='byteryte-v33'/.test(sw)) bad('service worker cache is not byteryte-v33');
 if (!/updateViaCache:'none'/.test(boot)) bad('service worker must be registered with updateViaCache none');
 if (!sw.includes('clients.claim') || !sw.includes('byteryte-reload')) bad('a new worker must claim clients and tell open windows to reload');
 if (!app.includes('aria-labelledby="appear"')) bad('appearance group has no name');
 if (!app.includes('aria-labelledby="prompt"')) bad('answer group has no name');
 if (!app.includes('Adds 15 minutes. A lesson you start while it is active earns 2× XP')) bad('double xp copy');
-if (!app.includes('Level up: +20') || !app.includes('Daily quest: +15') || !app.includes('All 3 quests: +25')) bad('shop gem list');
+if (!app.includes('Level up: +20') || !app.includes('Daily quest: +15') || !app.includes('All 3 quests: a gem chest (10 to 120)')) bad('shop gem list');
+if (!sw.includes("'chest.js'")) bad('service worker precache is missing chest.js');
+if (!sw.includes("'courses.js'")) bad('service worker precache is missing courses.js');
 if (!sw.includes("'boot.js'")) bad('service worker precache is missing boot.js');
 if (!sw.includes("'rytia.js'")) bad('service worker precache is missing rytia.js');
 if (!sw.includes("'grade.js'")) bad('service worker precache is missing grade.js');

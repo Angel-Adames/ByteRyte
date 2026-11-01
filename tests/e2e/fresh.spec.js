@@ -1,5 +1,5 @@
 import { test, expect } from './console.js';
-import { boot, state, overflow } from './helpers.js';
+import { boot, state, overflow, passCoursePick } from './helpers.js';
 
 function ymd(d = new Date()) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
@@ -77,6 +77,7 @@ test('a lesson keeps its profile when another tab adds one', async ({ page }, te
   await expect(other.getByText('Daily goal', { exact: true })).toBeVisible();
   await other.getByRole('button', { name: 'Profile', exact: true }).click();
   await other.getByRole('button', { name: 'Add profile' }).click();
+  await passCoursePick(other);
   await other.locator('#nm').fill('Bea');
   await other.getByRole('button', { name: 'Start from scratch' }).click();
   await expect(other.getByText('Daily goal', { exact: true })).toBeVisible();
@@ -180,6 +181,7 @@ test('several profiles can be added and switched by name', async ({ page }, test
   for (const name of ['Bea', 'Cam', 'Dee']) {
     await page.getByRole('button', { name: 'Profile', exact: true }).click();
     await page.getByRole('button', { name: 'Add profile' }).click();
+    await passCoursePick(page);
     await page.locator('#nm').fill(name);
     await page.getByRole('button', { name: 'Start from scratch' }).click();
     await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
@@ -229,6 +231,8 @@ test('rapid navigation lands on the last screen', async ({ page }, testInfo) => 
 test('a fresh install with no profile reaches onboarding', async ({ page }) => {
   await page.addInitScript(() => localStorage.removeItem('byteroots-profiles'));
   await page.goto('./');
+  await expect(page.getByRole('heading', { name: 'What do you want to learn first?' })).toBeVisible();
+  await passCoursePick(page);
   await expect(page.getByRole('button', { name: 'Start from scratch' })).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Pick an avatar' })).toBeVisible();
   await expect(page.getByRole('radio', { name: 'Fox avatar' })).toBeVisible();
@@ -277,13 +281,13 @@ test('larger text keeps the home screen inside the viewport', async ({ page }, t
   expect(zoomed).toEqual([]);
 });
 
-test('service worker v32 replaces a v31 cache and keeps the open tab on the app', async ({ page }, testInfo) => {
+test('service worker v33 replaces a v32 cache and keeps the open tab on the app', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await page.evaluate(async () => {
-    const cache = await caches.open('byteryte-v31');
-    await cache.put(new Request(new URL('legacy-v31.txt', location.href)), new Response('old'));
+    const cache = await caches.open('byteryte-v32');
+    await cache.put(new Request(new URL('legacy-v32.txt', location.href)), new Response('old'));
     const reg = await navigator.serviceWorker.getRegistration();
     if (reg) await reg.unregister();
   });
@@ -293,10 +297,10 @@ test('service worker v32 replaces a v31 cache and keeps the open tab on the app'
     try {
       return await page.evaluate(async () => {
         const keys = await caches.keys();
-        return { v32: keys.includes('byteryte-v32'), v31: keys.includes('byteryte-v31') };
+        return { v33: keys.includes('byteryte-v33'), v32: keys.includes('byteryte-v32') };
       });
-    } catch (e) { return { v32: false, v31: true }; }
-  }).toEqual({ v32: true, v31: false });
+    } catch (e) { return { v33: false, v32: true }; }
+  }).toEqual({ v33: true, v32: false });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new Event('controllerchange')));
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
