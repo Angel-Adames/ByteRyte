@@ -80,8 +80,8 @@ test('the daily chest pays once, then not again the same day', async ({ page }, 
 test('a new profile picks courses and an existing profile keeps its path', async ({ page }, testInfo) => {
   await page.addInitScript(() => localStorage.removeItem('byteroots-profiles'));
   await page.goto('./');
-  await expect(page.getByRole('button', { name: 'Skip welcome' })).toBeVisible();
-  await page.getByRole('button', { name: 'Skip welcome' }).click();
+  await expect(page.getByRole('button', { name: 'Get started' })).toBeVisible();
+  await page.getByRole('button', { name: 'Get started' }).click();
   await page.getByRole('button', { name: 'Skip question' }).click();
   await page.getByRole('button', { name: 'Skip question' }).click();
   await expect(page.getByRole('heading', { name: 'What do you want to learn first?' })).toBeVisible();
@@ -98,7 +98,7 @@ test('a new profile picks courses and an existing profile keeps its path', async
 
   await boot(page, testInfo, { profile: { name: 'Ada', xp: 40, done: { 'java.run': true, 'swift.basics': true }, track: 'java' } });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Skip welcome' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Get started' })).toHaveCount(0);
   await expect(page.getByRole('heading', { name: 'What do you want to learn first?' })).toHaveCount(0);
   const kept = await page.evaluate(() => ({ xp: window.__BR.S.xp, run: !!window.__BR.S.done['java.run'], courses: window.__BR.S.courses.slice(), track: window.__BR.S.track }));
   expect(kept).toEqual({ xp: 40, run: true, courses: ['java', 'swift'], track: 'java' });

@@ -231,7 +231,7 @@ test('rapid navigation lands on the last screen', async ({ page }, testInfo) => 
 test('a fresh install with no profile reaches onboarding', async ({ page }) => {
   await page.addInitScript(() => localStorage.removeItem('byteroots-profiles'));
   await page.goto('./');
-  await expect(page.getByRole('button', { name: 'Skip welcome' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Get started' })).toBeVisible();
   await passCoursePick(page);
   await expect(page.getByRole('button', { name: 'Start from scratch' })).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Pick an avatar' })).toBeVisible();
@@ -281,12 +281,12 @@ test('larger text keeps the home screen inside the viewport', async ({ page }, t
   expect(zoomed).toEqual([]);
 });
 
-test('service worker v34 replaces a v33 cache and keeps the open tab on the app', async ({ page }, testInfo) => {
+test('service worker v35 replaces a v34 cache and keeps the open tab on the app', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await page.evaluate(async () => {
-    const cache = await caches.open('byteryte-v33');
+    const cache = await caches.open('byteryte-v34');
     await cache.put(new Request(new URL('legacy-v32.txt', location.href)), new Response('old'));
     const reg = await navigator.serviceWorker.getRegistration();
     if (reg) await reg.unregister();
@@ -297,10 +297,10 @@ test('service worker v34 replaces a v33 cache and keeps the open tab on the app'
     try {
       return await page.evaluate(async () => {
         const keys = await caches.keys();
-        return { v34: keys.includes('byteryte-v34'), v33: keys.includes('byteryte-v33') };
+        return { v35: keys.includes('byteryte-v35'), v34: keys.includes('byteryte-v34') };
       });
-    } catch (e) { return { v34: false, v33: true }; }
-  }).toEqual({ v34: true, v33: false });
+    } catch (e) { return { v35: false, v34: true }; }
+  }).toEqual({ v35: true, v34: false });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new Event('controllerchange')));
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();

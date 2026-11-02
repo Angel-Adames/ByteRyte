@@ -13,7 +13,7 @@ npm test
 
 1. `validate-data.js` — every lesson and interview exercise has a known type, a correct index in range, no duplicate choices, and a real explanation. It also checks that old `java-0-0` style progress keys migrate to stable lesson ids.
 2. `validate-rytia.js` — every exercise, interview item, and unit-check question has a unique Rytia summary, and every wrong choice has a note that points at that choice. Typed questions have a summary and no choice notes.
-3. `validate-static.js` — storage keys stay `byteroots-profiles` and `byteroots-settings`, paths stay relative, the service worker cache is `byteryte-v34`, the page has no inline script, and the copy does not claim outside review or a paid gem.
+3. `validate-static.js` — storage keys stay `byteroots-profiles` and `byteroots-settings`, paths stay relative, the service worker cache is `byteryte-v35`, the page has no inline script, and the copy does not claim outside review or a paid gem.
 4. `validate-docs.js` — every lesson and interview topic has an official docs URL, and each URL returns HTTP 200.
 5. `validate-java.js` — every Java “what does this print?” snippet is compiled and run with `javac --release 21`.
 6. `validate-swift.js` — the same for Swift, plus every typed-answer canonical line, listed alternative, and simple raw-string form. It uses `SWIFT` if set, otherwise `/tmp/swift/swift-6.0.3-RELEASE-ubuntu24.04/usr/bin/swift`. If no toolchain is installed the script skips and says so.
