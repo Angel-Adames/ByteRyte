@@ -29,11 +29,26 @@ export function themeOf(testInfo) {
 }
 
 export async function passCoursePick(page) {
+  const welcome = page.getByRole('button', { name: 'Skip welcome' });
   const head = page.getByRole('heading', { name: 'What do you want to learn first?' });
-  try { await head.waitFor({ timeout: 4000 }); } catch (e) { return; }
+  const which = await Promise.race([
+    welcome.waitFor({ timeout: 8000 }).then(() => 'welcome').catch(() => null),
+    head.waitFor({ timeout: 8000 }).then(() => 'course').catch(() => null),
+  ]);
+  if (!which) return;
+  if (which === 'welcome') {
+    await welcome.click();
+    await page.getByRole('button', { name: 'Skip question' }).click();
+    await page.getByRole('button', { name: 'Skip question' }).click();
+  }
+  await head.waitFor();
   await page.getByRole('button', { name: /^Java\./ }).click();
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Skip', exact: true }).click();
+  await page.getByRole('button', { name: /^Regular/ }).click();
+  await page.getByRole('button', { name: 'Continue' }).click();
+  await page.getByRole('heading', { name: "You're all set" }).waitFor();
+  await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('button', { name: 'Start from scratch' }).waitFor();
 }
 

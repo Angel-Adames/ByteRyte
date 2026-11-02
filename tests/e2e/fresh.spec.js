@@ -36,15 +36,15 @@ test('lowering the daily goal pays gems that were already earned', async ({ page
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   expect((await state(page)).gems).toBe(50);
   await page.getByRole('button', { name: 'Settings' }).click();
-  await page.getByRole('radio', { name: '10 XP' }).click();
-  await expect(page.getByRole('radio', { name: '10 XP' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('radio', { name: '20 XP' }).click();
+  await expect(page.getByRole('radio', { name: '20 XP' })).toHaveAttribute('aria-checked', 'true');
   const paid = await page.evaluate((day) => ({
     gems: window.__BR.S.gems,
     goal: window.__BR.S.goal,
     goalDay: window.__BR.S.goalDay,
     claimed: window.__BR.S.qd.claimed.xp,
   }), today);
-  expect(paid.goal).toBe(10);
+  expect(paid.goal).toBe(20);
   expect(paid.gems).toBe(75);
   expect(paid.goalDay).toBe(today);
   expect(paid.claimed).toBe(1);
@@ -112,7 +112,7 @@ test('avatars, the daily goal, and profile switches have names', async ({ page }
   const goals = page.getByRole('radiogroup', { name: 'Daily goal' });
   await expect(goals).toBeVisible();
   await expect(goals.getByRole('radio', { name: '30 XP' })).toHaveAttribute('aria-checked', 'true');
-  await expect(goals.getByRole('radio', { name: '10 XP' })).toHaveAttribute('aria-checked', 'false');
+  await expect(goals.getByRole('radio', { name: '20 XP' })).toHaveAttribute('aria-checked', 'false');
   await page.getByRole('button', { name: 'Profile', exact: true }).click();
   await expect(page.getByRole('img', { name: /Sunday through Saturday/ })).toBeVisible();
 });
@@ -231,7 +231,7 @@ test('rapid navigation lands on the last screen', async ({ page }, testInfo) => 
 test('a fresh install with no profile reaches onboarding', async ({ page }) => {
   await page.addInitScript(() => localStorage.removeItem('byteroots-profiles'));
   await page.goto('./');
-  await expect(page.getByRole('heading', { name: 'What do you want to learn first?' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Skip welcome' })).toBeVisible();
   await passCoursePick(page);
   await expect(page.getByRole('button', { name: 'Start from scratch' })).toBeVisible();
   await expect(page.getByRole('radiogroup', { name: 'Pick an avatar' })).toBeVisible();
@@ -281,12 +281,12 @@ test('larger text keeps the home screen inside the viewport', async ({ page }, t
   expect(zoomed).toEqual([]);
 });
 
-test('service worker v33 replaces a v32 cache and keeps the open tab on the app', async ({ page }, testInfo) => {
+test('service worker v34 replaces a v33 cache and keeps the open tab on the app', async ({ page }, testInfo) => {
   await boot(page, testInfo);
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.waitForFunction(() => navigator.serviceWorker.controller);
   await page.evaluate(async () => {
-    const cache = await caches.open('byteryte-v32');
+    const cache = await caches.open('byteryte-v33');
     await cache.put(new Request(new URL('legacy-v32.txt', location.href)), new Response('old'));
     const reg = await navigator.serviceWorker.getRegistration();
     if (reg) await reg.unregister();
@@ -297,10 +297,10 @@ test('service worker v33 replaces a v32 cache and keeps the open tab on the app'
     try {
       return await page.evaluate(async () => {
         const keys = await caches.keys();
-        return { v33: keys.includes('byteryte-v33'), v32: keys.includes('byteryte-v32') };
+        return { v34: keys.includes('byteryte-v34'), v33: keys.includes('byteryte-v33') };
       });
-    } catch (e) { return { v33: false, v32: true }; }
-  }).toEqual({ v33: true, v32: false });
+    } catch (e) { return { v34: false, v33: true }; }
+  }).toEqual({ v34: true, v33: false });
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
   await page.evaluate(() => navigator.serviceWorker.dispatchEvent(new Event('controllerchange')));
   await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();

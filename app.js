@@ -29,7 +29,9 @@ function sanitize(p){
   p.hearts=Math.round(finite(p.hearts,5,0,5));
   p.gems=Math.round(finite(p.gems,0,0,1e9));
   p.freezes=Math.round(finite(p.freezes,0,0,2));
-  const g=Number(p.goal);p.goal=[10,30,50,100].includes(g)?g:30;
+  const g=Number(p.goal);p.goal=[10,20,30,50,100,150].includes(g)?g:30;
+  p.why={career:1,school:1,app:1,interviews:1,curiosity:1,other:1}[p.why]?p.why:'';
+  if(!{new:1,basics:1,vibe:1,brush:1}[p.exp])p.exp='';
   p.doubleUntil=finite(p.doubleUntil,0,0,null);
   if(p.doubleUntil>Date.now()+30*864e5)p.doubleUntil=0;
   if(p.heartAt==null||!Number.isFinite(Number(p.heartAt)))p.heartAt=null;else p.heartAt=Number(p.heartAt);
@@ -351,8 +353,9 @@ function settleRewards(){if(S.goalDay!==today()&&(S.xpLog[today()]||0)>=S.goal){
 function qBump(m,n=1){quests();if(m!=='xp')S.qd.p[m]=(S.qd.p[m]||0)+n;claimQuests()}
 function chestLine(){const L=S.qd.loot;if(L&&L.claimed)return `<div class="chest open">🎁 ${L.tier} · ${L.gems} 💎</div>`;if(chestReady())return `<button type="button" class="btn openchest">${L?'Chest open':'Open chest'}</button>`;return `<div class="chest">🎁 All 3 quests open a chest</div>`}
 function questsHTML(){const qs=quests(),d=qs.filter(q=>q.done).length;return `<section class="quests"><div class="row"><b>Daily quests</b><span class="muted sm">${d}/3 · resets at midnight</span></div>${qs.map(q=>`<div class="quest ${q.done?'done':''}"><span class="qi">${q.done?'✅':q.ic}</span><div><div class="row"><span>${esc(q.label)}</span><small>${q.v}/${q.n}</small></div><div class="bar sm"><i style="width:${q.v/q.n*100}%"></i></div></div><span class="qr" title="Reward">💎15</span></div>`).join('')}${chestLine()}</section>`}
-let chestP;
-function loadChest(){if(window.CHEST)return Promise.resolve(window.CHEST);if(chestP)return chestP;chestP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='chest.js';s.onload=()=>{if(window.CHEST)res(window.CHEST);else{chestP=null;rej(new Error('chest'))}};s.onerror=()=>{s.remove();chestP=null;rej(new Error('chest'))};document.head.appendChild(s)});return chestP}
+const lazy={};
+function loadJs(k,src){if(window[k])return Promise.resolve(window[k]);if(lazy[src])return lazy[src];return lazy[src]=new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=()=>window[k]?res(window[k]):rej();s.onerror=()=>{delete lazy[src];rej()};document.head.appendChild(s)})}
+function loadChest(){return loadJs('CHEST','chest.js')}
 function openLoot(){if(!ensureLoot())return;loadChest().then(C=>C.show()).catch(()=>toast('The chest could not open. Try again.'))}
 // ---------- badges ----------
 const BADGES=[
@@ -392,7 +395,7 @@ function shell(inner,{nav=true}={}){regen();document.querySelectorAll('.conf').f
   const cb=$('#courses');if(cb)cb.onclick=()=>toggleCourses(cb);
   $$('.openchest').forEach(b=>b.onclick=()=>{if(!once(b))return;openLoot()});
   window.scrollTo(0,0)}
-function show(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,settings,courses:()=>coursePick('first')}[v]||home)()}
+function show(v){cur=v;({learn:home,practice,interview:ivHome,shop,profile,settings,welcome:startWelcome,courses:()=>coursePick('first')}[v]||home)()}
 let histLock=false,navLock=false;
 function histPush(state){
   if(histLock)return;
@@ -411,6 +414,7 @@ function restore(s){
   if(!s||s.br!==1){show('learn');return}
   if(s.screen==='guide'){const t=T(s.track);if(t&&t.units[+s.ui||0])return guide(t,+s.ui||0);return show('learn')}
   if(s.screen==='recap')return recap();
+  if(s.screen==='welcome')return startWelcome();
   if(s.screen==='courses')return coursePick('first');
   if(s.screen==='edit')return editProfile(!!s.fresh);
   if(s.screen==='session'){try{history.replaceState({br:1,screen:s.back||'learn'},'')}catch(e){}return show(s.back||'learn')}
@@ -427,7 +431,7 @@ function onPop(ev){
 }
 function armHistory(){
   try{
-    const screen=needsCourses(S)?'courses':S&&S.onboarded?'learn':'edit';
+    const screen=needsCourses(S)?'welcome':S&&S.onboarded?'learn':'edit';
     const state={br:1,screen};if(screen==='edit')state.fresh=true;
     history.replaceState({br:0,screen:'sentinel'},'');
     history.pushState(state,'');
@@ -534,7 +538,7 @@ function profile(){cur='profile';daily();
   const dow=new Date().getDay(),cal=[...Array(35)].map((_,i)=>{const off=dow+28-i;return off<0?null:shiftDay(-off)}).slice(0);const lv=level();
   const acc=S.stats.answered?Math.round(S.stats.correct/S.stats.answered*100):0;
   const others=Object.values(P.list).filter(p=>p.id!==S.id);
-  shell(`<section class="phead"><button class="avatar big${cleanPhoto(S.photo)?' has-photo':''}" id="edit" aria-label="Change ${esc(S.name)}'s avatar">${faceHTML(S)}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small><br><button class="link" id="edit2">Edit profile</button></div></section>
+  shell(`<section class="phead"><button class="avatar big${cleanPhoto(S.photo)?' has-photo':''}" id="edit" aria-label="Change ${esc(S.name)}'s avatar">${faceHTML(S)}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small>${S.why?`<br><small class="muted">Learning for: ${S.why}</small>`:''}<br><button class="link" id="edit2">Edit profile</button></div></section>
   <div class="lvl"><div class="row"><b>Level ${lv.L}</b><small class="muted">${lv.need-lv.into} XP to level ${lv.L+1}</small></div><div class="bar"><i style="width:${lv.into/lv.need*100}%"></i></div></div>
   <div class="sgrid"><div class="scard">🔥<b>${S.streak}</b>Day streak</div><div class="scard">🏆<b>${S.best}</b>Best streak</div><div class="scard">⚡<b>${S.xp}</b>Total XP</div><div class="scard">💎<b>${S.gems}</b>Gems</div><div class="scard">📚<b>${S.stats.lessons}</b>Lessons</div><div class="scard">🎯<b>${acc}%</b>Accuracy</div></div>
   <button class="pcard" id="recap"><span class="pic">📅</span><span><b>Weekly recap</b><small>Your last 7 days at a glance</small></span></button>
@@ -569,7 +573,7 @@ function editProfile(isNew){let av=S.avatar,photo=S.photo||'';histPush({screen:'
   <label class="lbl" for="nm">Your name</label><input id="nm" class="inp" maxlength="24" value="${esc(S.name==='Learner'&&isNew?'':S.name)}" placeholder="e.g. Alex" autocomplete="nickname">
   <div class="lbl" id="photolbl">Profile photo</div><div class="photorow"><div class="avatar big" id="avprev" aria-hidden="true"></div><div><div class="row2"><label class="btn sm alt" for="pic">Choose photo</label><button class="btn sm alt" type="button" id="rmphoto">Remove photo</button></div><input id="pic" type="file" accept="image/*" hidden aria-labelledby="photolbl"><p class="muted sm" id="pichint">Any photo from your camera roll or files. It stays on this device.</p><p class="picerr" id="picerr" role="alert"></p></div></div>
   <div class="lbl">Pick an avatar</div><div class="avs" role="radiogroup" aria-label="Pick an avatar">${AVATARS.map((a,i)=>{const on=!cleanPhoto(photo)&&a===av;return `<button role="radio" aria-checked="${on?'true':'false'}" aria-label="${AVATAR_NAMES[i]} avatar" class="avatar ${on?'on':''}" data-a="${a}">${a}</button>`}).join('')}</div>
-  <div class="lbl">Daily goal</div><div class="goals">${[[10,'Casual'],[30,'Regular'],[50,'Serious'],[100,'Intense']].map(([g,n])=>`<button class="opt goal ${S.goal===g?'sel':''}" data-g="${g}"><b>${n}</b> · ${g} XP/day</button>`).join('')}</div>
+  <div class="lbl">Daily goal</div><div class="goals">${[[20,'Casual'],[50,'Regular'],[100,'Serious'],[150,'Intense']].map(([g,n])=>`<button class="opt goal ${S.goal===g?'sel':''}" data-g="${g}"><b>${n}</b> · ${g} XP/day</button>`).join('')}</div>
   ${isNew?`<button class="btn" id="sv">Start from scratch</button><button class="btn alt" id="pl" style="margin-top:12px">Take placement test (skip the Java language drill)</button>`:`<button class="btn" id="sv">Save</button>${Object.keys(P.list).length>1?'<button class="btn red" id="del" style="margin-top:12px">Delete this profile</button>':''}<button class="btn alt" id="cx" style="margin-top:12px">Cancel</button>`}</main>`;
   const paintAvs=()=>{const usePhoto=!!cleanPhoto(photo);$$('.avs .avatar').forEach(x=>{const on=!usePhoto&&x.dataset.a===av;x.classList.toggle('on',on);x.setAttribute('aria-checked',on?'true':'false')})};
   const paintPrev=()=>{const el=$('#avprev');el.className='avatar big'+(cleanPhoto(photo)?' has-photo':'');el.innerHTML=faceHTML({avatar:av,photo});$('#rmphoto').disabled=!cleanPhoto(photo);paintAvs()};
@@ -587,11 +591,12 @@ function editProfile(isNew){let av=S.avatar,photo=S.photo||'';histPush({screen:'
 }
 function needsCourses(p){return !!(p&&!p.onboarded&&!(p.xp>0)&&!(p.stats&&p.stats.lessons)&&!Object.keys(p.done||{}).length&&!(p.courses&&p.courses.length))}
 function adoptCourse(id,active){if(!S.courses)S.courses=[];if(!S.courses.includes(id))S.courses.push(id);const t=T(id);if(t&&t.parent){S.gates=S.gates||{};S.gates[id]=true}if(active)S.track=id}
-let courseP;
-function loadCourses(){if(window.COURSES_UI)return Promise.resolve(window.COURSES_UI);if(courseP)return courseP;courseP=new Promise((res,rej)=>{const s=document.createElement('script');s.src='courses.js';s.onload=()=>{if(window.COURSES_UI)res(window.COURSES_UI);else{courseP=null;rej(new Error('courses'))}};s.onerror=()=>{s.remove();courseP=null;rej(new Error('courses'))};document.head.appendChild(s)});return courseP}
+function loadCourses(){return loadJs('COURSES_UI','courses.js')}
+function startWelcome(){loadJs('ONBOARD','onboarding.js').then(U=>U.welcome(),()=>coursePick('first'))}
+function afterCourses(){loadJs('ONBOARD','onboarding.js').then(U=>U.goal(),()=>editProfile(true))}
 function coursePick(mode){loadCourses().then(U=>U.pick(mode)).catch(()=>editProfile(true))}
 function toggleCourses(b){loadCourses().then(U=>U.menu(b)).catch(()=>{})}
-const onboard=()=>needsCourses(S)?coursePick('first'):editProfile(true);
+const onboard=()=>needsCourses(S)?startWelcome():editProfile(true);
 // ---------- settings ----------
 function settings(){cur='settings';daily();
   const many=Object.keys(P.list).length>1;
@@ -610,7 +615,7 @@ function settings(){cur='settings';daily();
   <div class="set row"><div><b>Reduce motion</b><p class="muted" style="margin:2px 0 0">Turns off the little animations. A system setting that asks for less motion is always honored.</p></div><button class="switch ${G.motion?'on':''}" id="mot" role="switch" aria-checked="${G.motion}" aria-label="Reduce motion"><i></i></button></div>
   <div class="set row"><div><b>Vibration</b><p class="muted" style="margin:2px 0 0">A short buzz on a correct answer, a miss, and a purchase, when the device allows it.</p></div><button class="switch ${G.haptics?'on':''}" id="hap" role="switch" aria-checked="${G.haptics}" aria-label="Vibration"><i></i></button></div>
   <div class="set row"><b>Unlock all lessons</b><button class="switch ${S.unlockAll?'on':''}" id="ua" role="switch" aria-checked="${S.unlockAll}" aria-label="Unlock all lessons"><i></i></button></div>
-  <div class="set"><b>Daily goal</b><div class="seg" role="radiogroup" aria-label="Daily goal">${[10,30,50,100].map(g=>`<button role="radio" aria-checked="${S.goal===g}" class="${S.goal===g?'on':''}" data-g="${g}">${g} XP</button>`).join('')}</div></div>
+  <div class="set"><b>Daily goal</b><div class="seg" role="radiogroup" aria-label="Daily goal">${[...new Set([20,50,100,150,S.goal])].map(g=>`<button role="radio" aria-checked="${S.goal===g}" class="${S.goal===g?'on':''}" data-g="${g}">${g} XP</button>`).join('')}</div></div>
   <div class="set"><b>Backup</b><p class="muted">Export all profiles to a JSON file, or import one to move progress to another device.</p><div class="row2"><button class="btn sm alt" id="exp">⬇️ Export</button><label class="btn sm alt" for="imp">⬆️ Import</label><input type="file" id="imp" accept="application/json" hidden></div></div>
   <div class="set"><b>Keyboard shortcuts (desktop)</b><p class="muted">1–9 choose an answer (or a code line in Arrange) · Backspace undo last line · Enter check / continue · H 50/50 · S skip · Esc quit</p></div>
   <div class="set"><b>Danger zone</b><p class="muted">Deleting all data removes every profile, lesson, photo, and setting on this device. Export a backup first. This cannot be undone.</p>
@@ -837,5 +842,5 @@ addEventListener('storage',e=>{
   finally{syncing=false}
 });
 if('serviceWorker' in navigator){let had=!!navigator.serviceWorker.controller;navigator.serviceWorker.addEventListener('controllerchange',()=>{if(!had){had=true;return}try{if(sessionStorage.getItem('byteryte-sw-reload')==='1')return;sessionStorage.setItem('byteryte-sw-reload','1')}catch(e){}location.reload()})}
-window.__BR={get S(){return S},P:()=>P,cur:()=>R&&R.q[0]&&R.q[0].e,aud:()=>({state:AC?AC.state:'none',music:!!G.music,musicGain:musG?musG.gain.value:0,sfxGain:sfxG?sfxG.gain.value:0,musicDest:!!musWired,sfxDest:!!sfxWired,silent:!!(silEl&&!silEl.paused),session:(navigator.audioSession&&navigator.audioSession.type)||'',sfxVol:G.sfxVol,musicVol:G.musicVol,sound:!!G.sound,text:G.text,accent:G.accent}),loot:{odds:lootOdds,draw:lootDraw,keep:(a,b)=>lootKeep(a,b),rng:mulberry,tiers:LOOT.tiers.map(t=>({id:t.id,gems:t.gems.slice()}))},chest:{reroll:rerollLoot,claim:claimLoot},fx:()=>{sfx.coin();buzz(12)},courseUi:{esc,q:$,qq:$$,once,T,adopt:adoptCourse,save,land,edit:()=>editProfile(true),toast,needs:()=>needsCourses(S),app:()=>app,S:()=>S,hist:histPush,cur:v=>{cur=v},home}};
+window.__BR={get S(){return S},P:()=>P,cur:()=>R&&R.q[0]&&R.q[0].e,aud:()=>({state:AC?AC.state:'none',music:!!G.music,musicGain:musG?musG.gain.value:0,sfxGain:sfxG?sfxG.gain.value:0,musicDest:!!musWired,sfxDest:!!sfxWired,silent:!!(silEl&&!silEl.paused),session:(navigator.audioSession&&navigator.audioSession.type)||'',sfxVol:G.sfxVol,musicVol:G.musicVol,sound:!!G.sound,text:G.text,accent:G.accent}),loot:{odds:lootOdds,draw:lootDraw,keep:(a,b)=>lootKeep(a,b),rng:mulberry,tiers:LOOT.tiers.map(t=>({id:t.id,gems:t.gems.slice()}))},chest:{reroll:rerollLoot,claim:claimLoot},fx:(n)=>{if(n)tone(n,.03);else{sfx.coin();buzz(12)}},courseUi:{esc,q:$,qq:$$,once,T,adopt:adoptCourse,save,land,edit:()=>editProfile(true),toast,needs:()=>needsCourses(S),app:()=>app,S:()=>S,hist:histPush,cur:v=>{cur=v},home,afterCourses,pick:coursePick}};
 })();
