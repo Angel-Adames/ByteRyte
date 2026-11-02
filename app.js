@@ -22,6 +22,7 @@ let S;
 function finite(v,d,min,max){const n=Number(v);if(!Number.isFinite(n))return d;let x=n;if(min!=null&&x<min)x=min;if(max!=null&&x>max)x=max;return x}
 function cleanPhoto(v){if(typeof v!=='string'||v.length<32||v.length>100000)return '';return /^data:image\/jpeg;base64,(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(v)?v:''}
 const LOOT={tiers:[{id:'common',name:'Common',gems:[10,15]},{id:'rare',name:'Rare',gems:[25,35]},{id:'epic',name:'Epic',gems:[50,65]},{id:'legendary',name:'Legendary',gems:[90,120]}],base:[50,30,15,5],shift:[-5,2,2,1],rerolls:3};
+function ys(w){const a=new Set(Array.isArray(w)?w:[w]);w='career,school,app,interviews,curiosity,other'.split(',').filter(x=>a.has(x));let s=w.map(x=>x==='app'?'building apps':x).join(', ');if(s.length>42)s=s.slice(0,39).replace(/,[^,]*$/,'')+'…';return [w,s]}
 function sanitize(p){
   p.xp=Math.round(finite(p.xp,0,0,1e9));
   p.streak=Math.round(finite(p.streak,0,0,1e5));
@@ -30,7 +31,7 @@ function sanitize(p){
   p.gems=Math.round(finite(p.gems,0,0,1e9));
   p.freezes=Math.round(finite(p.freezes,0,0,2));
   const g=Number(p.goal);p.goal=[10,20,30,50,100,150].includes(g)?g:30;
-  p.why={career:1,school:1,app:1,interviews:1,curiosity:1,other:1}[p.why]?p.why:'';
+  p.why=ys(p.why)[0];
   if(!{new:1,basics:1,vibe:1,brush:1}[p.exp])p.exp='';
   p.doubleUntil=finite(p.doubleUntil,0,0,null);
   if(p.doubleUntil>Date.now()+30*864e5)p.doubleUntil=0;
@@ -257,10 +258,7 @@ const standalone=()=>{try{return matchMedia('(display-mode: standalone)').matche
 const rmq=matchMedia('(prefers-reduced-motion: reduce)');
 const applyTheme=()=>{G=normG(G);const d=G.theme==='dark'||(G.theme==='system'&&mq.matches);const root=document.documentElement;root.dataset.theme=d?'dark':'light';root.dataset.accent=G.accent;root.dataset.text=G.text;root.toggleAttribute('data-big',!!G.big);root.toggleAttribute('data-reduce',!!(G.motion||rmq.matches));$('meta[name=theme-color]').content=d?'#0b1220':'#16a34a';root.toggleAttribute('data-standalone',standalone())};
 mq.addEventListener?.('change',applyTheme);rmq.addEventListener?.('change',applyTheme);applyTheme();
-// Original lofi, synthesized here with the Web Audio API. No audio file and no third-party recording.
-// iOS routes Web Audio through the ringer, so the silent switch mutes it. A looping silent
-// <audio> plus audioSession "playback" moves output to the media channel. The context is
-// created, resumed, and poked in the same turn as the tap.
+// Lofi is synthesized here. iOS stays audible via a silent audio loop and audioSession playback.
 let AC,musG,sfxG,nbuf,silEl,silUrl,musTimer=0,musStep=0,musTouched=false,musWired=false,sfxWired=false,poked=false,inState=false;
 function ensureCtx(){AC=AC||new (window.AudioContext||window.webkitAudioContext)();if(!musG){musG=AC.createGain();musG.gain.value=0;musG.connect(AC.destination);musWired=true;sfxG=AC.createGain();sfxG.connect(AC.destination);sfxWired=true;AC.onstatechange=()=>{if(inState)return;inState=true;try{if(AC.state==='interrupted')resumeNow(AC);else if(AC.state==='running')syncAud()}finally{inState=false}}}sfxG.gain.value=sfxLevel();return AC}
 function resumeNow(ac){if(!ac||ac.state==='running')return;try{const p=ac.resume();if(p&&p.catch)p.catch(()=>{})}catch(e){}}
@@ -538,7 +536,7 @@ function profile(){cur='profile';daily();
   const dow=new Date().getDay(),cal=[...Array(35)].map((_,i)=>{const off=dow+28-i;return off<0?null:shiftDay(-off)}).slice(0);const lv=level();
   const acc=S.stats.answered?Math.round(S.stats.correct/S.stats.answered*100):0;
   const others=Object.values(P.list).filter(p=>p.id!==S.id);
-  shell(`<section class="phead"><button class="avatar big${cleanPhoto(S.photo)?' has-photo':''}" id="edit" aria-label="Change ${esc(S.name)}'s avatar">${faceHTML(S)}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small>${S.why?`<br><small class="muted">Learning for: ${S.why}</small>`:''}<br><button class="link" id="edit2">Edit profile</button></div></section>
+  shell(`<section class="phead"><button class="avatar big${cleanPhoto(S.photo)?' has-photo':''}" id="edit" aria-label="Change ${esc(S.name)}'s avatar">${faceHTML(S)}</button><div><h1 class="h1" style="margin:0">${esc(S.name)}</h1><small class="muted">Joined ${new Date(S.created).toLocaleDateString()}</small>${(t=>t?`<br><small class="muted">Learning for: ${t}</small>`:'')(ys(S.why)[1])}<br><button class="link" id="edit2">Edit profile</button></div></section>
   <div class="lvl"><div class="row"><b>Level ${lv.L}</b><small class="muted">${lv.need-lv.into} XP to level ${lv.L+1}</small></div><div class="bar"><i style="width:${lv.into/lv.need*100}%"></i></div></div>
   <div class="sgrid"><div class="scard">🔥<b>${S.streak}</b>Day streak</div><div class="scard">🏆<b>${S.best}</b>Best streak</div><div class="scard">⚡<b>${S.xp}</b>Total XP</div><div class="scard">💎<b>${S.gems}</b>Gems</div><div class="scard">📚<b>${S.stats.lessons}</b>Lessons</div><div class="scard">🎯<b>${acc}%</b>Accuracy</div></div>
   <button class="pcard" id="recap"><span class="pic">📅</span><span><b>Weekly recap</b><small>Your last 7 days at a glance</small></span></button>

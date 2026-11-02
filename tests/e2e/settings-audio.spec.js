@@ -310,7 +310,7 @@ test('delete-all confirms only after DELETE, and cancel leaves the profile', asy
   await page.getByRole('button', { name: 'Delete all data on this device' }).click();
   await page.getByLabel('Type DELETE to confirm').fill('DELETE');
   await page.getByRole('button', { name: 'Delete everything' }).click();
-  await expect(page.getByRole('button', { name: 'Skip welcome' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Get started' })).toBeVisible();
   const fresh = await page.evaluate(() => {
     const raw = JSON.parse(localStorage.getItem('byteroots-profiles'));
     const row = raw.list[raw.active];

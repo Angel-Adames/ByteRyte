@@ -29,7 +29,7 @@ export function themeOf(testInfo) {
 }
 
 export async function passCoursePick(page) {
-  const welcome = page.getByRole('button', { name: 'Skip welcome' });
+  const welcome = page.getByRole('button', { name: 'Get started' });
   const head = page.getByRole('heading', { name: 'What do you want to learn first?' });
   const which = await Promise.race([
     welcome.waitFor({ timeout: 8000 }).then(() => 'welcome').catch(() => null),
