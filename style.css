@@ -201,7 +201,7 @@ main,.tip,.q,.sheet,.gcard,.opt,.toast,.card{overflow-wrap:anywhere;word-break:n
 .boot{margin:auto;display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--mut);padding:40px}.boot span{font-size:48px;animation:breathe .9s ease-in-out infinite alternate}@keyframes breathe{to{transform:scale(1.12)}}.boot b{color:var(--gt);font-size:22px;font-weight:900}
 @media(max-width:560px){.tabs{display:grid;grid-template-columns:1fr 1fr;overflow:visible;margin:0;padding:10px 0}.tab{white-space:normal;text-align:left;min-width:0}}
 .qmain{padding-bottom:calc(176px + env(safe-area-inset-bottom))}
-.onb{padding-bottom:calc(36px + env(safe-area-inset-bottom))}
+.onb{padding:calc(8px + env(safe-area-inset-top)) 0 calc(36px + env(safe-area-inset-bottom))}
 .pup{min-height:44px}
 .guide{min-height:44px}
 .tab{min-height:48px}
