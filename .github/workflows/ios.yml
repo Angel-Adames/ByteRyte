@@ -1,0 +1,75 @@
+name: iOS simulator
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  simulator:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install JavaScript dependencies
+        run: npm ci
+      - name: CocoaPods
+        run: |
+          if ! command -v pod >/dev/null; then brew install cocoapods; fi
+          pod --version
+      - name: Bundle the site and sync iOS
+        run: npm run ios:sync
+      - name: Choose a simulator
+        id: sim
+        run: |
+          python3 - <<'PY'
+          import json, subprocess
+          raw = subprocess.check_output(["xcrun", "simctl", "list", "devices", "available", "-j"])
+          data = json.loads(raw)
+          pick = None
+          for runtime, devices in data.get("devices", {}).items():
+              if "iOS" not in runtime:
+                  continue
+              for device in devices:
+                  if device.get("isAvailable") and "iPhone" in device.get("name", ""):
+                      pick = device
+                      break
+              if pick:
+                  break
+          if not pick:
+              raise SystemExit("no iPhone simulator is installed")
+          open("/tmp/ios-udid", "w").write(pick["udid"])
+          print("Using", pick["name"], pick["udid"])
+          PY
+      - name: Build for the simulator
+        run: |
+          UDID=$(cat /tmp/ios-udid)
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=$UDID" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+      - name: Launch and screenshot
+        run: |
+          set -euo pipefail
+          UDID=$(cat /tmp/ios-udid)
+          APP="$RUNNER_TEMP/DerivedData/Build/Products/Debug-iphonesimulator/App.app"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" app.byteryte.learn
+          sleep 12
+          mkdir -p "$RUNNER_TEMP/ios-shots"
+          xcrun simctl io "$UDID" screenshot "$RUNNER_TEMP/ios-shots/byteryte-iphone.png"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-simulator-screenshot
+          path: ${{ runner.temp }}/ios-shots
+          if-no-files-found: warn
