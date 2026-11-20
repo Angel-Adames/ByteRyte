@@ -9,7 +9,7 @@ const bad = m => issues.push(m);
 const app = read('app.js'), sw = read('sw.js'), index = read('index.html'), manifest = read('manifest.webmanifest'), css = read('style.css'), boot = read('boot.js');
 const all = [app, sw, index, manifest, css, boot, read('data.js'), read('interview.js'), read('rytia.js'), read('README.md')].join('\n');
 
-if (!/const C='byteryte-v36'/.test(sw)) bad('service worker cache is not byteryte-v36');
+if (!/const C='byteryte-v37'/.test(sw)) bad('service worker cache is not byteryte-v37');
 if (!/updateViaCache:'none'/.test(boot)) bad('service worker must be registered with updateViaCache none');
 if (!sw.includes('clients.claim') || !sw.includes('byteryte-reload')) bad('a new worker must claim clients and tell open windows to reload');
 if (!app.includes('aria-labelledby="appear"')) bad('appearance group has no name');
