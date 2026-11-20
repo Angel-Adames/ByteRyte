@@ -162,6 +162,7 @@ test('the welcome stays after typing until Get started is pressed', async ({ pag
   await fresh(page);
   await page.getByRole('button', { name: 'Get started' }).waitFor({ timeout: 8000 });
   await expect(page.locator('#lines')).toContainText("let's write some code");
+  expect(await page.locator('.tline').first().evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
   await expect(page.getByRole('button', { name: 'Skip', exact: true })).toBeHidden();
   await page.waitForTimeout(1500);
   await page.locator('.term').click();
@@ -188,4 +189,22 @@ test('several reasons stay in order and a long line is shortened', async ({ page
   expect(line.startsWith('Learning for: career, school, building apps')).toBe(true);
   expect(line.endsWith('…')).toBe(true);
   expect(line).not.toContain('curiosity');
+});
+
+test('reset clears lessons and keeps the courses, goal, and reasons', async ({ page }, testInfo) => {
+  await boot(page, testInfo, { profile: { name: 'Ada', xp: 40, gems: 80, goal: 50, onboarded: true, track: 'swift', courses: ['swift', 'java'], why: ['career', 'app'], done: { 'java.run': true } } });
+  await page.getByRole('button', { name: 'Settings' }).click();
+  page.once('dialog', (d) => d.accept());
+  await page.getByRole('button', { name: "Reset Ada's progress" }).click();
+  await expect(page.getByText('Daily goal', { exact: true })).toBeVisible();
+  expect(await page.evaluate(() => ({
+    xp: window.__BR.S.xp,
+    run: !!window.__BR.S.done['java.run'],
+    gems: window.__BR.S.gems,
+    goal: window.__BR.S.goal,
+    track: window.__BR.S.track,
+    courses: window.__BR.S.courses.slice(),
+    why: window.__BR.S.why,
+    name: window.__BR.S.name,
+  }))).toEqual({ xp: 0, run: false, gems: 50, goal: 50, track: 'swift', courses: ['swift', 'java'], why: ['career', 'app'], name: 'Ada' });
 });
