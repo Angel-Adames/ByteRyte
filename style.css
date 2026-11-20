@@ -128,7 +128,7 @@ pre.code{background:var(--codebg);color:#e2e8f0;border-radius:14px;padding:14px;
 .badges{display:grid;grid-template-columns:repeat(auto-fill,minmax(100px,1fr));gap:8px}
 .badge{border:2px solid var(--line);border-radius:14px;padding:10px 6px;text-align:center;opacity:.45;filter:grayscale(1)}.badge.got{opacity:1;filter:none;border-color:#fcd34d;background:color-mix(in srgb,#fde68a 18%,var(--card))}
 .badge span{font-size:28px;display:block}.badge b{display:block;font-size:12px;margin-top:4px}.badge small{font-size:10px;color:var(--mut);line-height:1.3;display:block}
-.onb{padding-bottom:40px}.lbl{display:block;font-weight:800;margin:18px 0 8px}.inp{width:100%;font:600 17px var(--font);padding:13px 14px;border:2px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink)}.inp:focus{border-color:var(--sel);outline:none}
+.lbl{display:block;font-weight:800;margin:18px 0 8px}.inp{width:100%;font:600 17px var(--font);padding:13px 14px;border:2px solid var(--line);border-radius:14px;background:var(--card);color:var(--ink)}.inp:focus{border-color:var(--sel);outline:none}
 .goals{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:22px}.goals .opt{font-size:14px}
 .set{border:2px solid var(--line);border-radius:var(--rad);padding:14px;margin-bottom:10px}.set p{margin:6px 0 10px;font-size:14px}
 .seg{display:flex;background:var(--bg2);border-radius:12px;padding:4px;margin-top:10px;gap:4px}.seg button{flex:1;min-width:0;border:0;background:none;padding:9px 4px;border-radius:9px;font-weight:800;font-size:13px;cursor:pointer;color:var(--mut);line-height:1.15}.seg button.on{background:var(--card);color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.12)}
